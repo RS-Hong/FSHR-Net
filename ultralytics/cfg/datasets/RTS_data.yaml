@@ -1,0 +1,12 @@
+# data.yaml
+path: YOLO_SSDD+
+
+train: train/images
+val: val/images
+#test: test/images
+
+nc: 1
+channels: 3
+
+names:
+  0: ship
