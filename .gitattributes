@@ -1,0 +1,4 @@
+
+
+# 加密 config 文件夹下的所有内容（包括子文件夹）
+ultralytics/nn/modules/** filter=git-crypt diff=git-crypt
