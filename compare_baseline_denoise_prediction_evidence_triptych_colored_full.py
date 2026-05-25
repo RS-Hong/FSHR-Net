@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Compare baseline YOLOv8 and +DenoiseBlock models on the same dataset and build
 prediction-related evidence figures for DenoiseBlock.
@@ -26,12 +25,12 @@ because it focuses on:
 from __future__ import annotations
 
 import csv
-import math
 import os
 import sys
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any
 
 os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 os.environ.setdefault("OMP_NUM_THREADS", "1")
@@ -40,7 +39,6 @@ import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-
 
 CONFIG = {
     # ----------------------------
@@ -53,7 +51,6 @@ CONFIG = {
     "outdir": r"绘图/1",
     "image_exts": [".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff"],
     "max_images": 0,  # 0 means all
-
     # ----------------------------
     # runtime
     # ----------------------------
@@ -62,17 +59,15 @@ CONFIG = {
     "device": "0",
     "ultra_root": r"D:/code/ultralytics-SAR-V2",
     "list_modules_only": False,
-
     # ----------------------------
     # matching / comparison
     # ----------------------------
-    "nms_iou": 0.5,            # NMS IoU used by model.predict()
-    "match_iou": 0.5,          # TP/FP matching IoU against GT
-    "fp_suppress_iou": 0.3,    # baseline FP is considered suppressed if denoise has no same-class box above this IoU
+    "nms_iou": 0.5,  # NMS IoU used by model.predict()
+    "match_iou": 0.5,  # TP/FP matching IoU against GT
+    "fp_suppress_iou": 0.3,  # baseline FP is considered suppressed if denoise has no same-class box above this IoU
     "topk_fp_cases": 6,
     "topk_tp_cases": 4,
     "topk_channels": 6,
-
     # ----------------------------
     # always-export visual comparison panels
     # selection: "first", "fp_gap", "tp_gap", "fp_then_tp"
@@ -80,8 +75,7 @@ CONFIG = {
     "export_triptychs": True,
     "triptych_selection": "fp_then_tp",
     "topk_triptychs": 12,
-    "target_class": None,      # e.g. 0 ; None means all classes
-
+    "target_class": None,  # e.g. 0 ; None means all classes
     # ----------------------------
     # semantic layer pairs to compare
     # baseline and denoise layers should be semantically aligned
@@ -116,7 +110,7 @@ def ensure_dir(path: str | Path) -> Path:
     return p
 
 
-def add_ultralytics_repo_to_path(repo_root: Optional[str]) -> None:
+def add_ultralytics_repo_to_path(repo_root: str | None) -> None:
     if repo_root:
         repo_root = os.path.abspath(repo_root)
         if repo_root not in sys.path:
@@ -125,6 +119,7 @@ def add_ultralytics_repo_to_path(repo_root: Optional[str]) -> None:
 
 def import_yolo_class():
     from ultralytics import YOLO
+
     return YOLO
 
 
@@ -189,7 +184,7 @@ def overlay_heatmap_on_image(image_bgr: np.ndarray, heatmap01: np.ndarray, alpha
     return cv2.addWeighted(image_bgr, 1.0 - alpha, hm_color, alpha, 0)
 
 
-def resize_map_to_image(x: np.ndarray, target_hw: Tuple[int, int]) -> np.ndarray:
+def resize_map_to_image(x: np.ndarray, target_hw: tuple[int, int]) -> np.ndarray:
     h, w = target_hw
     return cv2.resize(x.astype(np.float32), (w, h), interpolation=cv2.INTER_CUBIC)
 
@@ -207,16 +202,16 @@ def energy_map(feat: torch.Tensor) -> np.ndarray:
 
 def draw_boxes(
     image_bgr: np.ndarray,
-    boxes_xyxy: Optional[np.ndarray],
-    labels: Optional[List[str]] = None,
-    color: Tuple[int, int, int] = (0, 255, 0),
+    boxes_xyxy: np.ndarray | None,
+    labels: list[str] | None = None,
+    color: tuple[int, int, int] = (0, 255, 0),
     thickness: int = 2,
 ) -> np.ndarray:
     canvas = image_bgr.copy()
     if boxes_xyxy is None or len(boxes_xyxy) == 0:
         return canvas
     for i, box in enumerate(boxes_xyxy):
-        x1, y1, x2, y2 = [int(round(v)) for v in box[:4]]
+        x1, y1, x2, y2 = [round(v) for v in box[:4]]
         cv2.rectangle(canvas, (x1, y1), (x2, y2), color, thickness)
         if labels is not None and i < len(labels):
             cv2.putText(canvas, labels[i], (x1, max(18, y1 - 5)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2, cv2.LINE_AA)
@@ -226,9 +221,18 @@ def draw_boxes(
 def draw_gt_boxes(image_bgr: np.ndarray, gt_boxes: np.ndarray, gt_classes: np.ndarray) -> np.ndarray:
     canvas = image_bgr.copy()
     for box, cls in zip(gt_boxes, gt_classes):
-        x1, y1, x2, y2 = [int(round(v)) for v in box[:4]]
+        x1, y1, x2, y2 = [round(v) for v in box[:4]]
         cv2.rectangle(canvas, (x1, y1), (x2, y2), (255, 255, 255), 2)
-        cv2.putText(canvas, f"gt:{int(cls)}", (x1, max(18, y1 - 5)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2, cv2.LINE_AA)
+        cv2.putText(
+            canvas,
+            f"gt:{int(cls)}",
+            (x1, max(18, y1 - 5)),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.5,
+            (255, 255, 255),
+            2,
+            cv2.LINE_AA,
+        )
     return canvas
 
 
@@ -236,7 +240,7 @@ def draw_gt_boxes(image_bgr: np.ndarray, gt_boxes: np.ndarray, gt_classes: np.nd
 # labels / boxes / matching
 # -----------------------------------------------------------------------------
 def xywhn_to_xyxy(row: Sequence[float], img_w: int, img_h: int) -> np.ndarray:
-    cls, xc, yc, w, h = row[:5]
+    _cls, xc, yc, w, h = row[:5]
     bw = float(w) * img_w
     bh = float(h) * img_h
     cx = float(xc) * img_w
@@ -248,11 +252,11 @@ def xywhn_to_xyxy(row: Sequence[float], img_w: int, img_h: int) -> np.ndarray:
     return np.array([x1, y1, x2, y2], dtype=np.float32)
 
 
-def read_yolo_label_file(path: Path, img_w: int, img_h: int, target_class: Optional[int]) -> Tuple[np.ndarray, np.ndarray]:
+def read_yolo_label_file(path: Path, img_w: int, img_h: int, target_class: int | None) -> tuple[np.ndarray, np.ndarray]:
     if not path.exists():
         return np.zeros((0, 4), dtype=np.float32), np.zeros((0,), dtype=np.int32)
-    boxes: List[np.ndarray] = []
-    classes: List[int] = []
+    boxes: list[np.ndarray] = []
+    classes: list[int] = []
     for line in path.read_text(encoding="utf-8").splitlines():
         s = line.strip()
         if not s:
@@ -294,10 +298,10 @@ class PredSummary:
     tp_flags: np.ndarray
     matched_gt: np.ndarray
     fp_flags: np.ndarray
-    fn_gt_indices: List[int]
+    fn_gt_indices: list[int]
 
 
-def extract_preds(result, target_class: Optional[int]) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+def extract_preds(result, target_class: int | None) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     if result.boxes is None or len(result.boxes) == 0:
         return (
             np.zeros((0, 4), dtype=np.float32),
@@ -326,7 +330,9 @@ def match_predictions_to_gt(
     fp = np.zeros((n,), dtype=bool)
     matched_gt = np.full((n,), -1, dtype=np.int32)
     if len(boxes) == 0:
-        return PredSummary(boxes, confs, classes, tp, matched_gt, np.zeros((0,), dtype=bool), list(range(len(gt_boxes))))
+        return PredSummary(
+            boxes, confs, classes, tp, matched_gt, np.zeros((0,), dtype=bool), list(range(len(gt_boxes)))
+        )
     order = np.argsort(-confs)
     used_gt = set()
     ious = box_iou_matrix(boxes, gt_boxes)
@@ -352,7 +358,7 @@ def match_predictions_to_gt(
     return PredSummary(boxes, confs, classes, tp, matched_gt, fp, fn_gt)
 
 
-def best_overlap_same_class(box: np.ndarray, cls: int, boxes: np.ndarray, classes: np.ndarray) -> Tuple[float, int]:
+def best_overlap_same_class(box: np.ndarray, cls: int, boxes: np.ndarray, classes: np.ndarray) -> tuple[float, int]:
     if len(boxes) == 0:
         return 0.0, -1
     keep = classes == int(cls)
@@ -368,11 +374,11 @@ def best_overlap_same_class(box: np.ndarray, cls: int, boxes: np.ndarray, classe
 # -----------------------------------------------------------------------------
 # YOLO helpers / hooks
 # -----------------------------------------------------------------------------
-def get_named_modules(model) -> List[Tuple[str, torch.nn.Module]]:
+def get_named_modules(model) -> list[tuple[str, torch.nn.Module]]:
     return list(model.model.named_modules())
 
 
-def choose_module_by_name(modules: Sequence[Tuple[str, torch.nn.Module]], target_name: str) -> torch.nn.Module:
+def choose_module_by_name(modules: Sequence[tuple[str, torch.nn.Module]], target_name: str) -> torch.nn.Module:
     for name, module in modules:
         if name == target_name:
             return module
@@ -410,7 +416,9 @@ def build_predict_source(img: np.ndarray, in_channels: int) -> np.ndarray:
 
 
 def run_predict(model, source_img_for_predict: np.ndarray, imgsz: int, conf: float, iou: float, device: str):
-    results = model.predict(source=source_img_for_predict, imgsz=imgsz, conf=conf, iou=iou, device=device, verbose=False)
+    results = model.predict(
+        source=source_img_for_predict, imgsz=imgsz, conf=conf, iou=iou, device=device, verbose=False
+    )
     if len(results) == 0:
         raise RuntimeError("No results returned by model.predict")
     return results[0]
@@ -418,7 +426,7 @@ def run_predict(model, source_img_for_predict: np.ndarray, imgsz: int, conf: flo
 
 class OutputHook:
     def __init__(self, module: torch.nn.Module):
-        self.output: Optional[torch.Tensor] = None
+        self.output: torch.Tensor | None = None
         self.handle = module.register_forward_hook(self._hook)
 
     def _hook(self, module, inputs, output):
@@ -436,7 +444,9 @@ class OutputHook:
 # -----------------------------------------------------------------------------
 # ROI feature analysis for box-specific evidence
 # -----------------------------------------------------------------------------
-def box_to_feature_coords(box: np.ndarray, img_hw: Tuple[int, int], feat_hw: Tuple[int, int]) -> Tuple[int, int, int, int]:
+def box_to_feature_coords(
+    box: np.ndarray, img_hw: tuple[int, int], feat_hw: tuple[int, int]
+) -> tuple[int, int, int, int]:
     ih, iw = img_hw
     fh, fw = feat_hw
     x1, y1, x2, y2 = box.astype(np.float32).tolist()
@@ -451,7 +461,7 @@ def box_to_feature_coords(box: np.ndarray, img_hw: Tuple[int, int], feat_hw: Tup
     return fx1, fy1, fx2, fy2
 
 
-def per_channel_roi_mean_abs(feat: torch.Tensor, box: np.ndarray, img_hw: Tuple[int, int]) -> np.ndarray:
+def per_channel_roi_mean_abs(feat: torch.Tensor, box: np.ndarray, img_hw: tuple[int, int]) -> np.ndarray:
     if feat.ndim == 4:
         feat = feat[0]
     c, h, w = feat.shape
@@ -478,7 +488,7 @@ def summarize_top_channels(
     roi_base: np.ndarray,
     roi_dn: np.ndarray,
     topk: int,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     common_c = min(len(roi_base), len(roi_dn))
     roi_base = roi_base[:common_c]
     roi_dn = roi_dn[:common_c]
@@ -503,7 +513,7 @@ def make_pred_status_overlay(
     gt_boxes: np.ndarray,
     gt_classes: np.ndarray,
     pred: PredSummary,
-    highlight_idx: Optional[int] = None,
+    highlight_idx: int | None = None,
     title_text: str = "",
 ) -> np.ndarray:
     """Prediction panel for triptychs.
@@ -520,13 +530,15 @@ def make_pred_status_overlay(
     for j in pred.fn_gt_indices:
         box = gt_boxes[j]
         cls = int(gt_classes[j])
-        x1, y1, x2, y2 = [int(round(v)) for v in box[:4]]
+        x1, y1, x2, y2 = [round(v) for v in box[:4]]
         cv2.rectangle(canvas, (x1, y1), (x2, y2), (0, 0, 255), 2)
-        cv2.putText(canvas, f"FN gt:{cls}", (x1, max(18, y1 - 5)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2, cv2.LINE_AA)
+        cv2.putText(
+            canvas, f"FN gt:{cls}", (x1, max(18, y1 - 5)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2, cv2.LINE_AA
+        )
 
     # Draw predictions: TP in green, FP in yellow.
     for i, box in enumerate(pred.boxes):
-        x1, y1, x2, y2 = [int(round(v)) for v in box[:4]]
+        x1, y1, x2, y2 = [round(v) for v in box[:4]]
         color = (0, 255, 0) if pred.tp_flags[i] else (0, 255, 255)
         thick = 2
         if highlight_idx is not None and i == highlight_idx:
@@ -541,7 +553,7 @@ def make_pred_status_overlay(
     return cv2.cvtColor(canvas, cv2.COLOR_BGR2RGB)
 
 
-def save_dataset_summary_figure(summary_rows: List[Dict[str, Any]], out_png: Path) -> None:
+def save_dataset_summary_figure(summary_rows: list[dict[str, Any]], out_png: Path) -> None:
     if not summary_rows:
         return
     total_base_tp = sum(r["baseline_tp"] for r in summary_rows)
@@ -617,13 +629,13 @@ def save_triptych_figure(
 
     axes[1].imshow(base_panel)
     axes[1].set_title(
-        f"baseline\nTP={int(base_pred.tp_flags.sum())}, FP={int(base_pred.fp_flags.sum())}, FN={int(len(base_pred.fn_gt_indices))}"
+        f"baseline\nTP={int(base_pred.tp_flags.sum())}, FP={int(base_pred.fp_flags.sum())}, FN={len(base_pred.fn_gt_indices)}"
     )
     axes[1].axis("off")
 
     axes[2].imshow(dn_panel)
     axes[2].set_title(
-        f"+Denoise\nTP={int(dn_pred.tp_flags.sum())}, FP={int(dn_pred.fp_flags.sum())}, FN={int(len(dn_pred.fn_gt_indices))}"
+        f"+Denoise\nTP={int(dn_pred.tp_flags.sum())}, FP={int(dn_pred.fp_flags.sum())}, FN={len(dn_pred.fn_gt_indices)}"
     )
     axes[2].axis("off")
 
@@ -631,17 +643,21 @@ def save_triptych_figure(
     plt.close(fig)
 
 
-def select_triptych_rows(rows: List[Dict[str, Any]], mode: str, topk: int) -> List[Dict[str, Any]]:
+def select_triptych_rows(rows: list[dict[str, Any]], mode: str, topk: int) -> list[dict[str, Any]]:
     if not rows:
         return []
     mode = str(mode or "first")
     if mode == "first":
         return rows[:topk]
     if mode == "fp_gap":
-        ordered = sorted(rows, key=lambda r: (r["baseline_fp"] - r["denoise_fp"], r["baseline_tp"] - r["denoise_tp"]), reverse=True)
+        ordered = sorted(
+            rows, key=lambda r: (r["baseline_fp"] - r["denoise_fp"], r["baseline_tp"] - r["denoise_tp"]), reverse=True
+        )
         return ordered[:topk]
     if mode == "tp_gap":
-        ordered = sorted(rows, key=lambda r: (r["denoise_tp"] - r["baseline_tp"], r["baseline_fp"] - r["denoise_fp"]), reverse=True)
+        ordered = sorted(
+            rows, key=lambda r: (r["denoise_tp"] - r["baseline_tp"], r["baseline_fp"] - r["denoise_fp"]), reverse=True
+        )
         return ordered[:topk]
     if mode == "fp_then_tp":
         ordered = sorted(
@@ -669,8 +685,8 @@ def save_fp_case_figure(
     pair_name: str,
     base_feat: torch.Tensor,
     dn_feat: torch.Tensor,
-    top_summary: Dict[str, Any],
-) -> Dict[str, float]:
+    top_summary: dict[str, Any],
+) -> dict[str, float]:
     box = base_pred.boxes[base_idx]
     cls = int(base_pred.classes[base_idx])
     conf_b = float(base_pred.confs[base_idx])
@@ -687,10 +703,18 @@ def save_fp_case_figure(
     agg_change = agg_dn - agg_base
 
     p1 = overlay_heatmap_on_image(img_bgr, resize_map_to_image(percentile_normalize(agg_base), img_bgr.shape[:2]))
-    p1 = cv2.cvtColor(draw_boxes(p1, np.array([box]), [f"baseline FP c{cls}:{conf_b:.2f}"], color=(0, 255, 255), thickness=3), cv2.COLOR_BGR2RGB)
+    p1 = cv2.cvtColor(
+        draw_boxes(p1, np.array([box]), [f"baseline FP c{cls}:{conf_b:.2f}"], color=(0, 255, 255), thickness=3),
+        cv2.COLOR_BGR2RGB,
+    )
     p2 = overlay_heatmap_on_image(img_bgr, resize_map_to_image(percentile_normalize(agg_dn), img_bgr.shape[:2]))
-    p2 = cv2.cvtColor(draw_boxes(p2, np.array([box]), [f"denoise overlap:{conf_dn:.2f}"], color=(0, 255, 255), thickness=3), cv2.COLOR_BGR2RGB)
-    ov1 = make_pred_status_overlay(img_bgr, gt_boxes, gt_classes, base_pred, highlight_idx=base_idx, title_text="baseline")
+    p2 = cv2.cvtColor(
+        draw_boxes(p2, np.array([box]), [f"denoise overlap:{conf_dn:.2f}"], color=(0, 255, 255), thickness=3),
+        cv2.COLOR_BGR2RGB,
+    )
+    ov1 = make_pred_status_overlay(
+        img_bgr, gt_boxes, gt_classes, base_pred, highlight_idx=base_idx, title_text="baseline"
+    )
     ov2 = make_pred_status_overlay(img_bgr, gt_boxes, gt_classes, dn_pred, highlight_idx=None, title_text="+Denoise")
 
     fig, axes = plt.subplots(2, 3, figsize=(15.8, 9.5), constrained_layout=True)
@@ -702,8 +726,8 @@ def save_fp_case_figure(
     axes[1].set_title("+Denoise predictions")
     axes[1].axis("off")
     axes[2].imshow(cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB))
-    x1, y1, x2, y2 = [int(round(v)) for v in box[:4]]
-    axes[2].add_patch(plt.Rectangle((x1, y1), x2 - x1, y2 - y1, fill=False, edgecolor='yellow', linewidth=3))
+    x1, y1, x2, y2 = [round(v) for v in box[:4]]
+    axes[2].add_patch(plt.Rectangle((x1, y1), x2 - x1, y2 - y1, fill=False, edgecolor="yellow", linewidth=3))
     axes[2].set_title(f"selected baseline-only FP\nclass={cls}, conf={conf_b:.2f}")
     axes[2].axis("off")
 
@@ -713,7 +737,9 @@ def save_fp_case_figure(
     axes[4].imshow(p2)
     axes[4].set_title(f"{pair_name} ROI-biased map\n(+Denoise)")
     axes[4].axis("off")
-    im = axes[5].imshow(sym_percentile_normalize(resize_map_to_image(agg_change, img_bgr.shape[:2])), cmap="coolwarm", vmin=-1, vmax=1)
+    im = axes[5].imshow(
+        sym_percentile_normalize(resize_map_to_image(agg_change, img_bgr.shape[:2])), cmap="coolwarm", vmin=-1, vmax=1
+    )
     axes[5].set_title(f"{pair_name} change\n(+Denoise - baseline)")
     axes[5].axis("off")
     fig.colorbar(im, ax=axes[5], fraction=0.046, pad=0.04)
@@ -727,10 +753,20 @@ def save_fp_case_figure(
     for col, ch in enumerate(top_idx):
         base_map = base_feat[0, ch].numpy().astype(np.float32)
         dn_map = dn_feat[0, ch].numpy().astype(np.float32)
-        b_overlay = overlay_heatmap_on_image(img_bgr, resize_map_to_image(percentile_normalize(np.abs(base_map)), img_bgr.shape[:2]))
-        d_overlay = overlay_heatmap_on_image(img_bgr, resize_map_to_image(percentile_normalize(np.abs(dn_map)), img_bgr.shape[:2]))
-        b_overlay = cv2.cvtColor(draw_boxes(b_overlay, np.array([box]), [f"ch{int(ch)}"], color=(0, 255, 255), thickness=3), cv2.COLOR_BGR2RGB)
-        d_overlay = cv2.cvtColor(draw_boxes(d_overlay, np.array([box]), [f"ch{int(ch)}"], color=(0, 255, 255), thickness=3), cv2.COLOR_BGR2RGB)
+        b_overlay = overlay_heatmap_on_image(
+            img_bgr, resize_map_to_image(percentile_normalize(np.abs(base_map)), img_bgr.shape[:2])
+        )
+        d_overlay = overlay_heatmap_on_image(
+            img_bgr, resize_map_to_image(percentile_normalize(np.abs(dn_map)), img_bgr.shape[:2])
+        )
+        b_overlay = cv2.cvtColor(
+            draw_boxes(b_overlay, np.array([box]), [f"ch{int(ch)}"], color=(0, 255, 255), thickness=3),
+            cv2.COLOR_BGR2RGB,
+        )
+        d_overlay = cv2.cvtColor(
+            draw_boxes(d_overlay, np.array([box]), [f"ch{int(ch)}"], color=(0, 255, 255), thickness=3),
+            cv2.COLOR_BGR2RGB,
+        )
         axes2[0, col].imshow(b_overlay)
         axes2[0, col].set_title(f"ch{int(ch)} before\nact={roi_base[ch]:.3f}")
         axes2[0, col].axis("off")
@@ -764,20 +800,27 @@ class ImageCompareRow:
     denoise_fn: int
 
 
-def find_images(root: Path, exts: Sequence[str]) -> List[Path]:
+def find_images(root: Path, exts: Sequence[str]) -> list[Path]:
     exts = {e.lower() for e in exts}
     return sorted([p for p in root.rglob("*") if p.suffix.lower() in exts])
 
 
 def corresponding_label_path(image_path: Path, image_root: Path, label_root: Path) -> Path:
     rel = image_path.relative_to(image_root)
-    return (label_root / rel).with_suffix('.txt')
+    return (label_root / rel).with_suffix(".txt")
 
 
 def validate_config(cfg: dict) -> None:
     required = [
-        "baseline_model", "denoise_model", "image_dir", "label_dir", "outdir", "imgsz",
-        "conf", "device", "compare_pairs",
+        "baseline_model",
+        "denoise_model",
+        "image_dir",
+        "label_dir",
+        "outdir",
+        "imgsz",
+        "conf",
+        "device",
+        "compare_pairs",
     ]
     for k in required:
         if k not in cfg:
@@ -829,64 +872,85 @@ def main() -> None:
         image_paths = image_paths[: int(cfg["max_images"])]
 
     # dataset pass: predictions + matching summary
-    rows: List[Dict[str, Any]] = []
-    fp_cases: List[Dict[str, Any]] = []
-    tp_cases: List[Dict[str, Any]] = []
+    rows: list[dict[str, Any]] = []
+    fp_cases: list[dict[str, Any]] = []
+    tp_cases: list[dict[str, Any]] = []
 
     for idx, img_path in enumerate(image_paths):
         img_any = read_image_any(img_path)
         img_h, img_w = img_any.shape[:2]
-        gt_boxes, gt_classes = read_yolo_label_file(corresponding_label_path(img_path, image_root, label_root), img_w, img_h, cfg.get("target_class"))
+        gt_boxes, gt_classes = read_yolo_label_file(
+            corresponding_label_path(img_path, image_root, label_root), img_w, img_h, cfg.get("target_class")
+        )
 
         base_source = build_predict_source(img_any, base_in_ch)
         dn_source = build_predict_source(img_any, dn_in_ch)
-        base_res = run_predict(baseline_model, base_source, int(cfg["imgsz"]), float(cfg["conf"]), float(cfg["nms_iou"]), str(cfg["device"]))
-        dn_res = run_predict(denoise_model, dn_source, int(cfg["imgsz"]), float(cfg["conf"]), float(cfg["nms_iou"]), str(cfg["device"]))
+        base_res = run_predict(
+            baseline_model,
+            base_source,
+            int(cfg["imgsz"]),
+            float(cfg["conf"]),
+            float(cfg["nms_iou"]),
+            str(cfg["device"]),
+        )
+        dn_res = run_predict(
+            denoise_model, dn_source, int(cfg["imgsz"]), float(cfg["conf"]), float(cfg["nms_iou"]), str(cfg["device"])
+        )
         base_boxes, base_confs, base_classes = extract_preds(base_res, cfg.get("target_class"))
         dn_boxes, dn_confs, dn_classes = extract_preds(dn_res, cfg.get("target_class"))
 
-        base_sum = match_predictions_to_gt(base_boxes, base_confs, base_classes, gt_boxes, gt_classes, float(cfg["match_iou"]))
+        base_sum = match_predictions_to_gt(
+            base_boxes, base_confs, base_classes, gt_boxes, gt_classes, float(cfg["match_iou"])
+        )
         dn_sum = match_predictions_to_gt(dn_boxes, dn_confs, dn_classes, gt_boxes, gt_classes, float(cfg["match_iou"]))
 
-        rows.append({
-            "image_path": str(img_path),
-            "label_path": str(corresponding_label_path(img_path, image_root, label_root)),
-            "baseline_tp": int(base_sum.tp_flags.sum()),
-            "baseline_fp": int(base_sum.fp_flags.sum()),
-            "baseline_fn": int(len(base_sum.fn_gt_indices)),
-            "denoise_tp": int(dn_sum.tp_flags.sum()),
-            "denoise_fp": int(dn_sum.fp_flags.sum()),
-            "denoise_fn": int(len(dn_sum.fn_gt_indices)),
-        })
+        rows.append(
+            {
+                "image_path": str(img_path),
+                "label_path": str(corresponding_label_path(img_path, image_root, label_root)),
+                "baseline_tp": int(base_sum.tp_flags.sum()),
+                "baseline_fp": int(base_sum.fp_flags.sum()),
+                "baseline_fn": len(base_sum.fn_gt_indices),
+                "denoise_tp": int(dn_sum.tp_flags.sum()),
+                "denoise_fp": int(dn_sum.fp_flags.sum()),
+                "denoise_fn": len(dn_sum.fn_gt_indices),
+            }
+        )
 
         # baseline-only FP candidates
         for bi in np.where(base_sum.fp_flags)[0].tolist():
-            iou_dn, di = best_overlap_same_class(base_sum.boxes[bi], int(base_sum.classes[bi]), dn_sum.boxes, dn_sum.classes)
+            iou_dn, di = best_overlap_same_class(
+                base_sum.boxes[bi], int(base_sum.classes[bi]), dn_sum.boxes, dn_sum.classes
+            )
             suppressed = (di < 0) or (iou_dn < float(cfg["fp_suppress_iou"]))
             if suppressed:
-                fp_cases.append({
-                    "image_path": str(img_path),
-                    "baseline_idx": int(bi),
-                    "baseline_conf": float(base_sum.confs[bi]),
-                    "baseline_cls": int(base_sum.classes[bi]),
-                    "denoise_overlap_iou": float(iou_dn),
-                    "denoise_overlap_idx": int(di),
-                })
+                fp_cases.append(
+                    {
+                        "image_path": str(img_path),
+                        "baseline_idx": int(bi),
+                        "baseline_conf": float(base_sum.confs[bi]),
+                        "baseline_cls": int(base_sum.classes[bi]),
+                        "denoise_overlap_iou": float(iou_dn),
+                        "denoise_overlap_idx": int(di),
+                    }
+                )
 
         # preserved TP candidates
         for bi in np.where(base_sum.tp_flags)[0].tolist():
             gt_idx = int(base_sum.matched_gt[bi])
             preserved = any((dn_sum.tp_flags) & (dn_sum.matched_gt == gt_idx))
             if preserved:
-                tp_cases.append({
-                    "image_path": str(img_path),
-                    "baseline_idx": int(bi),
-                    "baseline_conf": float(base_sum.confs[bi]),
-                    "matched_gt": gt_idx,
-                })
+                tp_cases.append(
+                    {
+                        "image_path": str(img_path),
+                        "baseline_idx": int(bi),
+                        "baseline_conf": float(base_sum.confs[bi]),
+                        "matched_gt": gt_idx,
+                    }
+                )
 
         if (idx + 1) % 20 == 0 or (idx + 1) == len(image_paths):
-            print(f"[{idx+1}/{len(image_paths)}] processed {img_path.name}")
+            print(f"[{idx + 1}/{len(image_paths)}] processed {img_path.name}")
 
     # save summary csv/text
     with (outdir / "01_per_image_compare.csv").open("w", newline="", encoding="utf-8-sig") as f:
@@ -914,7 +978,9 @@ def main() -> None:
     # even if no baseline-only FP cases are found.
     if bool(cfg.get("export_triptychs", True)) and rows:
         trip_outdir = ensure_dir(outdir / "triptychs")
-        selected = select_triptych_rows(rows, str(cfg.get("triptych_selection", "fp_then_tp")), int(cfg.get("topk_triptychs", 12)))
+        selected = select_triptych_rows(
+            rows, str(cfg.get("triptych_selection", "fp_then_tp")), int(cfg.get("topk_triptychs", 12))
+        )
         for ti, row in enumerate(selected):
             img_path = Path(row["image_path"])
             img_any = read_image_any(img_path)
@@ -925,13 +991,33 @@ def main() -> None:
             )
             base_source = build_predict_source(img_any, base_in_ch)
             dn_source = build_predict_source(img_any, dn_in_ch)
-            base_res = run_predict(baseline_model, base_source, int(cfg["imgsz"]), float(cfg["conf"]), float(cfg["nms_iou"]), str(cfg["device"]))
-            dn_res = run_predict(denoise_model, dn_source, int(cfg["imgsz"]), float(cfg["conf"]), float(cfg["nms_iou"]), str(cfg["device"]))
+            base_res = run_predict(
+                baseline_model,
+                base_source,
+                int(cfg["imgsz"]),
+                float(cfg["conf"]),
+                float(cfg["nms_iou"]),
+                str(cfg["device"]),
+            )
+            dn_res = run_predict(
+                denoise_model,
+                dn_source,
+                int(cfg["imgsz"]),
+                float(cfg["conf"]),
+                float(cfg["nms_iou"]),
+                str(cfg["device"]),
+            )
             base_boxes, base_confs, base_classes = extract_preds(base_res, cfg.get("target_class"))
             dn_boxes, dn_confs, dn_classes = extract_preds(dn_res, cfg.get("target_class"))
-            base_sum = match_predictions_to_gt(base_boxes, base_confs, base_classes, gt_boxes, gt_classes, float(cfg["match_iou"]))
-            dn_sum = match_predictions_to_gt(dn_boxes, dn_confs, dn_classes, gt_boxes, gt_classes, float(cfg["match_iou"]))
-            title_suffix = f"\nΔFP={row['baseline_fp'] - row['denoise_fp']}, ΔTP={row['denoise_tp'] - row['baseline_tp']}"
+            base_sum = match_predictions_to_gt(
+                base_boxes, base_confs, base_classes, gt_boxes, gt_classes, float(cfg["match_iou"])
+            )
+            dn_sum = match_predictions_to_gt(
+                dn_boxes, dn_confs, dn_classes, gt_boxes, gt_classes, float(cfg["match_iou"])
+            )
+            title_suffix = (
+                f"\nΔFP={row['baseline_fp'] - row['denoise_fp']}, ΔTP={row['denoise_tp'] - row['baseline_tp']}"
+            )
             save_triptych_figure(
                 trip_outdir / f"{ti:02d}_{img_path.stem}_triptych.png",
                 img_bgr,
@@ -950,14 +1036,16 @@ def main() -> None:
     # sort cases by baseline FP confidence descending
     fp_cases = sorted(fp_cases, key=lambda d: d["baseline_conf"], reverse=True)[: int(cfg["topk_fp_cases"])]
 
-    pair_stats_rows: List[Dict[str, Any]] = []
+    pair_stats_rows: list[dict[str, Any]] = []
 
     for case_idx, case in enumerate(fp_cases):
         img_path = Path(case["image_path"])
         img_any = read_image_any(img_path)
         img_h, img_w = img_any.shape[:2]
         img_bgr = to_bgr_uint8(img_any)
-        gt_boxes, gt_classes = read_yolo_label_file(corresponding_label_path(img_path, image_root, label_root), img_w, img_h, cfg.get("target_class"))
+        gt_boxes, gt_classes = read_yolo_label_file(
+            corresponding_label_path(img_path, image_root, label_root), img_w, img_h, cfg.get("target_class")
+        )
 
         base_source = build_predict_source(img_any, base_in_ch)
         dn_source = build_predict_source(img_any, dn_in_ch)
@@ -969,8 +1057,22 @@ def main() -> None:
             base_hook = OutputHook(base_layer)
             dn_hook = OutputHook(dn_layer)
             try:
-                base_res = run_predict(baseline_model, base_source, int(cfg["imgsz"]), float(cfg["conf"]), float(cfg["nms_iou"]), str(cfg["device"]))
-                dn_res = run_predict(denoise_model, dn_source, int(cfg["imgsz"]), float(cfg["conf"]), float(cfg["nms_iou"]), str(cfg["device"]))
+                base_res = run_predict(
+                    baseline_model,
+                    base_source,
+                    int(cfg["imgsz"]),
+                    float(cfg["conf"]),
+                    float(cfg["nms_iou"]),
+                    str(cfg["device"]),
+                )
+                dn_res = run_predict(
+                    denoise_model,
+                    dn_source,
+                    int(cfg["imgsz"]),
+                    float(cfg["conf"]),
+                    float(cfg["nms_iou"]),
+                    str(cfg["device"]),
+                )
             finally:
                 base_hook.close()
                 dn_hook.close()
@@ -981,13 +1083,19 @@ def main() -> None:
 
             base_boxes, base_confs, base_classes = extract_preds(base_res, cfg.get("target_class"))
             dn_boxes, dn_confs, dn_classes = extract_preds(dn_res, cfg.get("target_class"))
-            base_sum = match_predictions_to_gt(base_boxes, base_confs, base_classes, gt_boxes, gt_classes, float(cfg["match_iou"]))
-            dn_sum = match_predictions_to_gt(dn_boxes, dn_confs, dn_classes, gt_boxes, gt_classes, float(cfg["match_iou"]))
+            base_sum = match_predictions_to_gt(
+                base_boxes, base_confs, base_classes, gt_boxes, gt_classes, float(cfg["match_iou"])
+            )
+            dn_sum = match_predictions_to_gt(
+                dn_boxes, dn_confs, dn_classes, gt_boxes, gt_classes, float(cfg["match_iou"])
+            )
 
             bi = int(case["baseline_idx"])
             if bi >= len(base_sum.boxes):
                 continue
-            iou_dn, di = best_overlap_same_class(base_sum.boxes[bi], int(base_sum.classes[bi]), dn_sum.boxes, dn_sum.classes)
+            iou_dn, di = best_overlap_same_class(
+                base_sum.boxes[bi], int(base_sum.classes[bi]), dn_sum.boxes, dn_sum.classes
+            )
 
             roi_base = per_channel_roi_mean_abs(base_hook.output, base_sum.boxes[bi], img_bgr.shape[:2])
             roi_dn = per_channel_roi_mean_abs(dn_hook.output, base_sum.boxes[bi], img_bgr.shape[:2])
@@ -1007,15 +1115,17 @@ def main() -> None:
                 dn_feat=dn_hook.output,
                 top_summary=top_summary,
             )
-            pair_stats_rows.append({
-                "case_index": case_idx,
-                "pair": pair_name,
-                "image": str(img_path),
-                "baseline_cls": int(base_sum.classes[bi]),
-                "baseline_conf": float(base_sum.confs[bi]),
-                "denoise_overlap_iou": float(iou_dn),
-                **stat,
-            })
+            pair_stats_rows.append(
+                {
+                    "case_index": case_idx,
+                    "pair": pair_name,
+                    "image": str(img_path),
+                    "baseline_cls": int(base_sum.classes[bi]),
+                    "baseline_conf": float(base_sum.confs[bi]),
+                    "denoise_overlap_iou": float(iou_dn),
+                    **stat,
+                }
+            )
 
     if pair_stats_rows:
         with (outdir / "03_fp_case_metrics.csv").open("w", newline="", encoding="utf-8-sig") as f:
@@ -1024,8 +1134,12 @@ def main() -> None:
             writer.writerows(pair_stats_rows)
 
     # save module listings for convenience
-    (outdir / "99_named_modules_baseline.txt").write_text(get_named_modules_text(baseline_model, "baseline"), encoding="utf-8")
-    (outdir / "99_named_modules_denoise.txt").write_text(get_named_modules_text(denoise_model, "+Denoise"), encoding="utf-8")
+    (outdir / "99_named_modules_baseline.txt").write_text(
+        get_named_modules_text(baseline_model, "baseline"), encoding="utf-8"
+    )
+    (outdir / "99_named_modules_denoise.txt").write_text(
+        get_named_modules_text(denoise_model, "+Denoise"), encoding="utf-8"
+    )
 
     print("=" * 80)
     print("Saved:")
