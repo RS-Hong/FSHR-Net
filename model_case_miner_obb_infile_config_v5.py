@@ -1,16 +1,16 @@
-import math
-from pathlib import Path
 from collections import OrderedDict
+from pathlib import Path
 
 import cv2
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
+
 from ultralytics import YOLO
 
-'''
+"""
 保存对比结果
-'''
+"""
 
 
 # =========================
@@ -22,11 +22,9 @@ CONFIG = {
     #   images/
     #   labels/
     "dataset_root": r"D:\code\ultralytics-SAR-V2\YOLO_SSDD+\val",
-
     # 改进模型
     "improved_model_name": "Ours",
     "improved_model_weight": r"G:\对比权重\SSDD\Ours.pt",
-
     # 对比模型，按这里的顺序出现在 Excel 和拼图中
     "compare_models": OrderedDict(
         {
@@ -37,47 +35,36 @@ CONFIG = {
             "YOLO26": r"G:\对比权重\SSDD\YOLO26.pt",
         }
     ),
-
     # 输出目录
     "output_dir": r"D:\code\ultralytics-SAR-V2\绘图\SSDD",
-
     # 标签格式：
     # "auto" = 自动识别（推荐）：5列按YOLO水平框，9列按YOLO OBB四点框
     # "bbox" = 强制按  class cx cy w h  读取
     # "obb"  = 强制按  class x1 y1 x2 y2 x3 y3 x4 y4  读取
     "label_format": "auto",
-
     # 先按 GT 数量筛图，只保留 GT 数量 >= min_gt_count 的图片
     "min_gt_count": 4,
-
     # 选图时，要求改进模型的 AP50 至少达到这个阈值
     "improved_ap50_threshold": 0.80,
-
     # AP 差异比较用哪个指标："ap50" / "ap75" / "ap_mean"
     "ap_compare_metric": "ap50",
-
     # Precision 选图方式：
     # "absolute" = 选改进模型 Precision 最大的图（你这次要求的默认行为）
     # "delta"    = 选改进模型相对 baseline 的 Precision 差值最大的图
     "precision_selection_mode": "absolute",
-
     # 推理参数
     "imgsz": 640,
-    "device": 0,            # 0 / '0' / 'cpu'
+    "device": 0,  # 0 / '0' / 'cpu'
     "conf": 0.5,
     "iou_nms": 0.5,
     "max_det": 300,
-
     # 类别名（可选）
     # 如果为 None，则优先使用模型自带 names；若仍获取不到，就显示 cls_{id}
     "class_names": None,
-
     # 评估 IoU 阈值
     "eval_iou_thresholds": [0.5, 0.75],
-
     # 支持的图片后缀
     "image_suffixes": [".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"],
-
     # 画图参数
     "panel_width": 720,
     "panel_height": 720,
@@ -85,15 +72,12 @@ CONFIG = {
     "margin": 16,
     "font_scale": 0.8,
     "font_thickness": 2,
-
     # 每行最左侧图片名标签面板
     "row_label_width": 280,
     "row_label_font_scale": 0.95,
     "row_label_font_thickness": 2,
-
     # 是否在预测框上方显示“类名 + 置信度”
     "show_pred_label_conf": False,
-
     # 是否限制处理图片数量；None 表示全量
     "limit_images": None,
 }
@@ -103,9 +87,9 @@ CONFIG = {
 # 工具函数
 # =========================
 
+
 def ensure_dir(path):
     Path(path).mkdir(parents=True, exist_ok=True)
-
 
 
 def list_images(images_dir, suffixes):
@@ -114,9 +98,8 @@ def list_images(images_dir, suffixes):
     return sorted(files, key=lambda x: x.name)
 
 
-
 def polygon_area(poly):
-    """poly: (N,2)"""
+    """Poly: (N,2)."""
     if poly is None or len(poly) < 3:
         return 0.0
     x = poly[:, 0]
@@ -124,9 +107,8 @@ def polygon_area(poly):
     return float(abs(np.dot(x, np.roll(y, -1)) - np.dot(y, np.roll(x, -1))) * 0.5)
 
 
-
 def reorder_quad_clockwise(pts):
-    """将四点重排成顺时针，便于计算与绘制。"""
+    """将四点重排成顺时针，便于计算与绘制。."""
     pts = np.asarray(pts, dtype=np.float32).reshape(4, 2)
     center = pts.mean(axis=0)
     angles = np.arctan2(pts[:, 1] - center[1], pts[:, 0] - center[0])
@@ -137,16 +119,15 @@ def reorder_quad_clockwise(pts):
     return pts.astype(np.float32)
 
 
-
 def quad_iou(quad1, quad2):
-    """quad: (4,2), convex quadrilateral IoU"""
+    """Quad: (4,2), convex quadrilateral IoU."""
     q1 = reorder_quad_clockwise(quad1).astype(np.float32)
     q2 = reorder_quad_clockwise(quad2).astype(np.float32)
     a1 = polygon_area(q1)
     a2 = polygon_area(q2)
     if a1 <= 0 or a2 <= 0:
         return 0.0
-    ret, inter_poly = cv2.intersectConvexConvex(q1, q2)
+    ret, _inter_poly = cv2.intersectConvexConvex(q1, q2)
     inter = float(ret) if ret is not None else 0.0
     union = a1 + a2 - inter
     if union <= 0:
@@ -154,11 +135,9 @@ def quad_iou(quad1, quad2):
     return max(0.0, min(1.0, inter / union))
 
 
-
 def xyxy_to_quad(xyxy):
     x1, y1, x2, y2 = [float(v) for v in xyxy]
     return np.array([[x1, y1], [x2, y1], [x2, y2], [x1, y2]], dtype=np.float32)
-
 
 
 def normalize_to_pixels(quad_norm, w, h):
@@ -166,7 +145,6 @@ def normalize_to_pixels(quad_norm, w, h):
     quad[:, 0] *= w
     quad[:, 1] *= h
     return quad
-
 
 
 def bbox_cxcywh_to_quad(cx, cy, bw, bh, img_w, img_h):
@@ -187,13 +165,12 @@ def bbox_cxcywh_to_quad(cx, cy, bw, bh, img_w, img_h):
 
 
 def load_label_as_quads(label_path, img_w, img_h, label_format="auto"):
-    """
-    统一读取标签并转成四点框 quad。
+    """统一读取标签并转成四点框 quad。.
 
     支持三种模式：
     1) auto: 自动识别
-       - 5列: class cx cy w h            (YOLO水平框)
-       - 9列: class x1 y1 ... x4 y4      (YOLO OBB四点框)
+    - 5列: class cx cy w h            (YOLO水平框)
+    - 9列: class x1 y1 ... x4 y4      (YOLO OBB四点框)
     2) bbox: 强制按 YOLO 水平框读取
     3) obb : 强制按 YOLO OBB 四点框读取
 
@@ -203,7 +180,7 @@ def load_label_as_quads(label_path, img_w, img_h, label_format="auto"):
     if not Path(label_path).exists():
         return gts
 
-    with open(label_path, "r", encoding="utf-8") as f:
+    with open(label_path, encoding="utf-8") as f:
         for line_idx, line in enumerate(f, start=1):
             line = line.strip()
             if not line:
@@ -242,7 +219,6 @@ def load_label_as_quads(label_path, img_w, img_h, label_format="auto"):
     return gts
 
 
-
 def get_class_name_map(models, fallback=None):
     if fallback is not None:
         return fallback
@@ -253,7 +229,6 @@ def get_class_name_map(models, fallback=None):
         if isinstance(names, (list, tuple)) and len(names) > 0:
             return {i: n for i, n in enumerate(names)}
     return None
-
 
 
 def extract_predictions(result):
@@ -290,7 +265,6 @@ def extract_predictions(result):
                     }
                 )
     return preds
-
 
 
 def compute_pr_ap_for_image(gt_list, pred_list, iou_thr=0.5):
@@ -362,7 +336,6 @@ def compute_pr_ap_for_image(gt_list, pred_list, iou_thr=0.5):
     }
 
 
-
 def evaluate_image(gt_list, pred_list, iou_thresholds=(0.5, 0.75)):
     out = {}
     all_ap = []
@@ -397,7 +370,6 @@ def evaluate_image(gt_list, pred_list, iou_thresholds=(0.5, 0.75)):
     return out
 
 
-
 def run_inference(model, image_path, cfg):
     results = model.predict(
         source=str(image_path),
@@ -412,24 +384,21 @@ def run_inference(model, image_path, cfg):
     return extract_predictions(results[0])
 
 
-
 def fit_to_canvas(img, width, height):
     h, w = img.shape[:2]
     scale = min(width / max(w, 1), height / max(h, 1))
-    nw, nh = max(1, int(round(w * scale))), max(1, int(round(h * scale)))
+    nw, nh = max(1, round(w * scale)), max(1, round(h * scale))
     resized = cv2.resize(img, (nw, nh), interpolation=cv2.INTER_LINEAR)
     canvas = np.full((height, width, 3), 255, dtype=np.uint8)
     x0 = (width - nw) // 2
     y0 = (height - nh) // 2
-    canvas[y0:y0 + nh, x0:x0 + nw] = resized
+    canvas[y0 : y0 + nh, x0 : x0 + nw] = resized
     return canvas
-
 
 
 def draw_quad(img, quad, color, thickness=2):
     pts = reorder_quad_clockwise(quad).astype(np.int32).reshape((-1, 1, 2))
     cv2.polylines(img, [pts], isClosed=True, color=color, thickness=thickness, lineType=cv2.LINE_AA)
-
 
 
 def draw_label_box(img, text, x, y, color):
@@ -443,12 +412,10 @@ def draw_label_box(img, text, x, y, color):
     cv2.putText(img, text, (x + 3, y - 4), font, scale, (255, 255, 255), thickness, cv2.LINE_AA)
 
 
-
 def class_name(cls_id, name_map):
     if isinstance(name_map, dict):
         return str(name_map.get(int(cls_id), f"cls_{int(cls_id)}"))
     return f"cls_{int(cls_id)}"
-
 
 
 def match_predictions_for_display(gt_list, pred_list, iou_thr=0.5):
@@ -483,8 +450,17 @@ def match_predictions_for_display(gt_list, pred_list, iou_thr=0.5):
     return pred_status, gt_status, pred_to_gt
 
 
-
-def render_panel(image_bgr, gt_list=None, pred_list=None, pred_status=None, gt_status=None, title="", name_map=None, cfg=None, mode="original"):
+def render_panel(
+    image_bgr,
+    gt_list=None,
+    pred_list=None,
+    pred_status=None,
+    gt_status=None,
+    title="",
+    name_map=None,
+    cfg=None,
+    mode="original",
+):
     if cfg is None:
         cfg = CONFIG
     panel = image_bgr.copy()
@@ -529,7 +505,6 @@ def render_panel(image_bgr, gt_list=None, pred_list=None, pred_status=None, gt_s
         cv2.LINE_AA,
     )
     return np.vstack([title_bar, panel])
-
 
 
 def wrap_text_by_width(text, max_width, font, scale, thickness):
@@ -595,9 +570,19 @@ def render_row_label_panel(image_name, cfg):
     return panel
 
 
-
-def make_comparison_figure(case_rows, compare_names, improved_name, output_path, image_cache, gt_cache, pred_cache, metrics_cache, name_map, cfg):
-    cols = ["ImageName", "Original", "GT"] + list(compare_names) + [improved_name]
+def make_comparison_figure(
+    case_rows,
+    compare_names,
+    improved_name,
+    output_path,
+    image_cache,
+    gt_cache,
+    pred_cache,
+    metrics_cache,
+    name_map,
+    cfg,
+):
+    cols = ["ImageName", "Original", "GT", *list(compare_names), improved_name]
     ncols = len(cols)
     nrows = len(case_rows)
     panel_h = cfg["title_height"] + cfg["panel_height"]
@@ -617,9 +602,9 @@ def make_comparison_figure(case_rows, compare_names, improved_name, output_path,
 
         label_panel = render_row_label_panel(image_name, cfg)
         x_label = margin
-        canvas[y0:y0 + label_panel.shape[0], x_label:x_label + label_panel.shape[1]] = label_panel
+        canvas[y0 : y0 + label_panel.shape[0], x_label : x_label + label_panel.shape[1]] = label_panel
 
-        row_models = ["__original__", "__gt__"] + list(compare_names) + [improved_name]
+        row_models = ["__original__", "__gt__", *list(compare_names), improved_name]
         for c, model_name in enumerate(row_models):
             if model_name == "__original__":
                 title = f"Original | GT:{len(gt_list)} | {case['metric_tag']}"
@@ -665,10 +650,9 @@ def make_comparison_figure(case_rows, compare_names, improved_name, output_path,
                 )
 
             x0 = margin + label_w + margin + c * (panel_w + margin)
-            canvas[y0:y0 + panel.shape[0], x0:x0 + panel.shape[1]] = panel
+            canvas[y0 : y0 + panel.shape[0], x0 : x0 + panel.shape[1]] = panel
 
     cv2.imwrite(str(output_path), canvas)
-
 
 
 def build_image_metric_row(image_name, gt_count, model_names, metrics_cache):
@@ -683,7 +667,6 @@ def build_image_metric_row(image_name, gt_count, model_names, metrics_cache):
         row[f"{model_name}__ap50"] = m["ap50"]
         row[f"{model_name}__ap75"] = m["ap75"]
     return row
-
 
 
 def select_case_rows(valid_images, compare_names, improved_name, metrics_cache, gt_cache, cfg):
@@ -729,14 +712,28 @@ def select_case_rows(valid_images, compare_names, improved_name, metrics_cache, 
         if ap_delta_col not in df_delta.columns:
             ap_delta_col = "delta_ap50"
 
-        top_ap = df_delta.sort_values([ap_delta_col, "improved_ap50", "improved_recall"], ascending=False).iloc[0].to_dict()
-        top_recall = df_delta.sort_values(["delta_recall", "improved_ap50", "improved_precision"], ascending=False).iloc[0].to_dict()
+        top_ap = (
+            df_delta.sort_values([ap_delta_col, "improved_ap50", "improved_recall"], ascending=False).iloc[0].to_dict()
+        )
+        top_recall = (
+            df_delta.sort_values(["delta_recall", "improved_ap50", "improved_precision"], ascending=False)
+            .iloc[0]
+            .to_dict()
+        )
 
         if precision_mode == "delta":
-            top_precision = df_delta.sort_values(["delta_precision", "improved_ap50", "improved_recall"], ascending=False).iloc[0].to_dict()
+            top_precision = (
+                df_delta.sort_values(["delta_precision", "improved_ap50", "improved_recall"], ascending=False)
+                .iloc[0]
+                .to_dict()
+            )
             precision_desc = "max ΔPrecision"
         else:
-            top_precision = df_delta.sort_values(["improved_precision", "improved_ap50", "delta_precision"], ascending=False).iloc[0].to_dict()
+            top_precision = (
+                df_delta.sort_values(["improved_precision", "improved_ap50", "delta_precision"], ascending=False)
+                .iloc[0]
+                .to_dict()
+            )
             precision_desc = "max Precision"
 
         top_ap["metric_tag"] = f"vs {baseline_name} | max Δ{ap_metric.upper()}"
@@ -746,7 +743,6 @@ def select_case_rows(valid_images, compare_names, improved_name, metrics_cache, 
         top_case_rows.extend([top_ap, top_recall, top_precision])
 
     return top_case_rows
-
 
 
 def main():
@@ -800,9 +796,7 @@ def main():
             filtered_image_files.append(img_path)
 
     if not filtered_image_files:
-        raise RuntimeError(
-            f"没有图片满足 GT 数量 >= {cfg['min_gt_count']} 的条件，请调小 min_gt_count。"
-        )
+        raise RuntimeError(f"没有图片满足 GT 数量 >= {cfg['min_gt_count']} 的条件，请调小 min_gt_count。")
 
     # 加载模型
     models = OrderedDict()
@@ -811,11 +805,11 @@ def main():
     models[cfg["improved_model_name"]] = YOLO(cfg["improved_model_weight"])
     compare_names = list(cfg["compare_models"].keys())
     improved_name = cfg["improved_model_name"]
-    all_model_names = compare_names + [improved_name]
+    all_model_names = [*compare_names, improved_name]
     name_map = get_class_name_map(models, cfg.get("class_names", None))
 
-    pred_cache = {}      # key: (image_name, model_name)
-    metrics_cache = {}   # key: (image_name, model_name)
+    pred_cache = {}  # key: (image_name, model_name)
+    metrics_cache = {}  # key: (image_name, model_name)
     long_rows = []
 
     print(f"[INFO] 过滤后保留 {len(filtered_image_files)} 张图片，开始逐图评估...")
@@ -846,7 +840,9 @@ def main():
 
     df_long = pd.DataFrame(long_rows)
     df_summary = (
-        df_long.groupby("model_name")[["precision", "recall", "ap50", "ap75", "ap_mean", "tp", "fp", "fn", "pred_count", "gt_count"]]
+        df_long.groupby("model_name")[
+            ["precision", "recall", "ap50", "ap75", "ap_mean", "tp", "fp", "fn", "pred_count", "gt_count"]
+        ]
         .mean(numeric_only=True)
         .reset_index()
         .sort_values(by=["ap50", "ap75", "recall", "precision"], ascending=False)
@@ -854,7 +850,9 @@ def main():
 
     # 用户要的主表：每行一张图，保存图片名、GT 数量、每个模型的 P/R/AP50/AP75
     valid_images = sorted([p.name for p in filtered_image_files])
-    main_rows = [build_image_metric_row(name, len(gt_cache[name]), all_model_names, metrics_cache) for name in valid_images]
+    main_rows = [
+        build_image_metric_row(name, len(gt_cache[name]), all_model_names, metrics_cache) for name in valid_images
+    ]
     df_main = pd.DataFrame(main_rows)
 
     # 可选：保留 image_path 方便回查
@@ -871,7 +869,9 @@ def main():
             order = [
                 f"vs {baseline_name} | max Δ{cfg.get('ap_compare_metric', 'ap50').upper()}",
                 f"vs {baseline_name} | max ΔRecall",
-                f"vs {baseline_name} | max Precision" if cfg.get("precision_selection_mode", "absolute") != "delta" else f"vs {baseline_name} | max ΔPrecision",
+                f"vs {baseline_name} | max Precision"
+                if cfg.get("precision_selection_mode", "absolute") != "delta"
+                else f"vs {baseline_name} | max ΔPrecision",
             ]
             sub["_order"] = pd.Categorical(sub["metric_tag"], categories=order, ordered=True)
             sub = sub.sort_values("_order")
