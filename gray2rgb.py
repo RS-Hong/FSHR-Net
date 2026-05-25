@@ -1,8 +1,8 @@
-'''
-RT-DETR仅支持3通道，因此将SAR图像灰度图转3通道图像训练、预测
-'''
-from PIL import Image
+"""RT-DETR仅支持3通道，因此将SAR图像灰度图转3通道图像训练、预测."""
+
 from pathlib import Path
+
+from PIL import Image
 
 src_dir = Path("YOLO_SARship/test/images")
 dst_dir = Path("YOLO_SARship3/test/images")
