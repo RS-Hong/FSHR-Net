@@ -1,6 +1,6 @@
-import cv2
-import os
 from pathlib import Path
+
+import cv2
 
 
 def find_image_files(images_dir):
@@ -31,7 +31,7 @@ def draw_yolo_boxes_on_image(img, label_path, color=(0, 255, 0), thickness=2, sh
     if not label_path.exists():
         return img
 
-    with open(label_path, "r", encoding="utf-8") as f:
+    with open(label_path, encoding="utf-8") as f:
         lines = [line.strip() for line in f if line.strip()]
 
     for line in lines:
@@ -50,10 +50,10 @@ def draw_yolo_boxes_on_image(img, label_path, color=(0, 255, 0), thickness=2, sh
         box_w = bw * w
         box_h = bh * h
 
-        x1 = int(round(x_center - box_w / 2))
-        y1 = int(round(y_center - box_h / 2))
-        x2 = int(round(x_center + box_w / 2))
-        y2 = int(round(y_center + box_h / 2))
+        x1 = round(x_center - box_w / 2)
+        y1 = round(y_center - box_h / 2)
+        x2 = round(x_center + box_w / 2)
+        y2 = round(y_center + box_h / 2)
 
         x1 = max(0, min(w - 1, x1))
         y1 = max(0, min(h - 1, y1))
@@ -148,7 +148,7 @@ if __name__ == "__main__":
     draw_labels_from_dataset_root(
         dataset_root=dataset_root,
         save_root=save_root,
-        color=(0, 255, 0),   # 绿色
+        color=(0, 255, 0),  # 绿色
         thickness=2,
         show_class=False,
         keep_subdir=False,

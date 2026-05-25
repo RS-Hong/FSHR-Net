@@ -1,31 +1,31 @@
-import os
 import csv
 import glob
+import os
 from pathlib import Path
-from typing import List, Dict
 
 import cv2
 import numpy as np
+
 from ultralytics import YOLO
 
-'''
+"""
 根据test文件中的图像和标签，选择适合展示的图片
-'''
+"""
 
 # =========================================================
 # 1. 配置区：直接在这里改参数
 # =========================================================
-TEST_DIR = r"YOLO_HRSID\test"                 # 测试集根目录，内部应有 images/ 和 labels/
-BASELINE_WEIGHT = r"runs\detect\HRSID-YOLOv8-E300-B16-test\weights\best.pt"        # baseline 权重
-IMPROVED_WEIGHT = r"runs\detect\HRSID_YOLOv8-denoise-E300-B16\weights\best.pt"        # 改进模型权重
-OUTPUT_CSV = r"output\compare_metrics_denoise.csv"      # 输出 csv 路径
+TEST_DIR = r"YOLO_HRSID\test"  # 测试集根目录，内部应有 images/ 和 labels/
+BASELINE_WEIGHT = r"runs\detect\HRSID-YOLOv8-E300-B16-test\weights\best.pt"  # baseline 权重
+IMPROVED_WEIGHT = r"runs\detect\HRSID_YOLOv8-denoise-E300-B16\weights\best.pt"  # 改进模型权重
+OUTPUT_CSV = r"output\compare_metrics_denoise.csv"  # 输出 csv 路径
 
-CONF_THRESH = 0.25          # 预测置信度阈值
-PRED_IOU_THRESH = 0.7       # 模型预测时 NMS 的 IoU 阈值
-MATCH_IOU_THRESH = 0.5      # 预测框与 GT 匹配时的 IoU 阈值
-IMGSZ = 640                 # 推理尺寸
-DEVICE = "0"                # "0" 表示第0块GPU，"cpu" 表示CPU
-CLASS_AWARE = True          # True: 匹配时要求类别一致；单类别检测一般无影响
+CONF_THRESH = 0.25  # 预测置信度阈值
+PRED_IOU_THRESH = 0.7  # 模型预测时 NMS 的 IoU 阈值
+MATCH_IOU_THRESH = 0.5  # 预测框与 GT 匹配时的 IoU 阈值
+IMGSZ = 640  # 推理尺寸
+DEVICE = "0"  # "0" 表示第0块GPU，"cpu" 表示CPU
+CLASS_AWARE = True  # True: 匹配时要求类别一致；单类别检测一般无影响
 
 
 # 支持的图像后缀
@@ -33,9 +33,7 @@ IMG_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
 
 
 def xywhn_to_xyxy(box, img_w, img_h):
-    """
-    YOLO标签格式: cls cx cy w h (归一化)
-    -> 转为像素坐标 xyxy
+    """YOLO标签格式: cls cx cy w h (归一化) -> 转为像素坐标 xyxy.
     """
     cls_id, cx, cy, w, h = box
     x1 = (cx - w / 2.0) * img_w
@@ -45,17 +43,15 @@ def xywhn_to_xyxy(box, img_w, img_h):
     return [int(cls_id), x1, y1, x2, y2]
 
 
-def read_yolo_label(label_path: str, img_w: int, img_h: int) -> List[List[float]]:
-    """
-    读取单个 YOLO txt 标签
-    返回格式: [[cls, x1, y1, x2, y2], ...]
+def read_yolo_label(label_path: str, img_w: int, img_h: int) -> list[list[float]]:
+    """读取单个 YOLO txt 标签 返回格式: [[cls, x1, y1, x2, y2], ...].
     """
     gt_boxes = []
 
     if not os.path.exists(label_path):
         return gt_boxes
 
-    with open(label_path, "r", encoding="utf-8") as f:
+    with open(label_path, encoding="utf-8") as f:
         lines = [line.strip() for line in f.readlines() if line.strip()]
 
     for line in lines:
@@ -69,9 +65,7 @@ def read_yolo_label(label_path: str, img_w: int, img_h: int) -> List[List[float]
 
 
 def compute_iou(box1, box2):
-    """
-    box 格式: [x1, y1, x2, y2]
-    """
+    """Box 格式: [x1, y1, x2, y2]."""
     x1 = max(box1[0], box2[0])
     y1 = max(box1[1], box2[1])
     x2 = min(box1[2], box2[2])
@@ -89,14 +83,9 @@ def compute_iou(box1, box2):
 
 
 def greedy_match(
-    gt_boxes: List[List[float]],
-    pred_boxes: List[List[float]],
-    iou_thr: float = 0.5,
-    class_aware: bool = True
+    gt_boxes: list[list[float]], pred_boxes: list[list[float]], iou_thr: float = 0.5, class_aware: bool = True
 ):
-    """
-    gt_boxes:   [[cls, x1, y1, x2, y2], ...]
-    pred_boxes: [[cls, x1, y1, x2, y2, conf], ...]
+    """gt_boxes: [[cls, x1, y1, x2, y2], ...] pred_boxes: [[cls, x1, y1, x2, y2, conf], ...].
 
     返回:
         matches: [(gt_idx, pred_idx, iou), ...]
@@ -108,7 +97,7 @@ def greedy_match(
     for gi, gt in enumerate(gt_boxes):
         gt_cls, gx1, gy1, gx2, gy2 = gt
         for pi, pred in enumerate(pred_boxes):
-            p_cls, px1, py1, px2, py2, conf = pred
+            p_cls, px1, py1, px2, py2, _conf = pred
 
             if class_aware and int(gt_cls) != int(p_cls):
                 continue
@@ -138,55 +127,25 @@ def greedy_match(
 
 
 def evaluate_one_image(
-    gt_boxes: List[List[float]],
-    pred_boxes: List[List[float]],
-    iou_thr: float = 0.5,
-    class_aware: bool = True
-) -> Dict[str, float]:
-    """
-    单张图指标:
-      - precision = TP / (TP + FP)
-      - recall    = TP / (TP + FN)
-      - mIoU      = 所有成功匹配对的平均 IoU
+    gt_boxes: list[list[float]], pred_boxes: list[list[float]], iou_thr: float = 0.5, class_aware: bool = True
+) -> dict[str, float]:
+    """单张图指标: - precision = TP / (TP + FP) - recall = TP / (TP + FN) - mIoU = 所有成功匹配对的平均 IoU.
 
     特殊情况:
-      - 无GT且无预测 -> precision=1, recall=1, mIoU=1
-      - 无GT但有预测 -> precision=0, recall=1, mIoU=0
-      - 有GT但无预测 -> precision=0, recall=0, mIoU=0
+    - 无GT且无预测 -> precision=1, recall=1, mIoU=1
+    - 无GT但有预测 -> precision=0, recall=1, mIoU=0
+    - 有GT但无预测 -> precision=0, recall=0, mIoU=0
     """
     if len(gt_boxes) == 0 and len(pred_boxes) == 0:
-        return {
-            "tp": 0,
-            "fp": 0,
-            "fn": 0,
-            "precision": 1.0,
-            "recall": 1.0,
-            "miou": 1.0
-        }
+        return {"tp": 0, "fp": 0, "fn": 0, "precision": 1.0, "recall": 1.0, "miou": 1.0}
 
     if len(gt_boxes) == 0 and len(pred_boxes) > 0:
-        return {
-            "tp": 0,
-            "fp": len(pred_boxes),
-            "fn": 0,
-            "precision": 0.0,
-            "recall": 1.0,
-            "miou": 0.0
-        }
+        return {"tp": 0, "fp": len(pred_boxes), "fn": 0, "precision": 0.0, "recall": 1.0, "miou": 0.0}
 
     if len(gt_boxes) > 0 and len(pred_boxes) == 0:
-        return {
-            "tp": 0,
-            "fp": 0,
-            "fn": len(gt_boxes),
-            "precision": 0.0,
-            "recall": 0.0,
-            "miou": 0.0
-        }
+        return {"tp": 0, "fp": 0, "fn": len(gt_boxes), "precision": 0.0, "recall": 0.0, "miou": 0.0}
 
-    matches, unmatched_gt, unmatched_pred = greedy_match(
-        gt_boxes, pred_boxes, iou_thr=iou_thr, class_aware=class_aware
-    )
+    matches, unmatched_gt, unmatched_pred = greedy_match(gt_boxes, pred_boxes, iou_thr=iou_thr, class_aware=class_aware)
 
     tp = len(matches)
     fp = len(unmatched_pred)
@@ -196,17 +155,10 @@ def evaluate_one_image(
     recall = tp / (tp + fn + 1e-16)
     miou = float(np.mean([m[2] for m in matches])) if tp > 0 else 0.0
 
-    return {
-        "tp": tp,
-        "fp": fp,
-        "fn": fn,
-        "precision": precision,
-        "recall": recall,
-        "miou": miou
-    }
+    return {"tp": tp, "fp": fp, "fn": fn, "precision": precision, "recall": recall, "miou": miou}
 
 
-def get_image_list(images_dir: str) -> List[str]:
+def get_image_list(images_dir: str) -> list[str]:
     image_paths = []
     for ext in IMG_EXTS:
         image_paths.extend(glob.glob(os.path.join(images_dir, f"*{ext}")))
@@ -216,18 +168,9 @@ def get_image_list(images_dir: str) -> List[str]:
 
 
 def run_model_on_image(model, image_path, conf=0.25, iou=0.7, imgsz=640, device="0"):
+    """返回预测框: [[cls, x1, y1, x2, y2, conf], ...].
     """
-    返回预测框:
-    [[cls, x1, y1, x2, y2, conf], ...]
-    """
-    results = model.predict(
-        source=image_path,
-        conf=conf,
-        iou=iou,
-        imgsz=imgsz,
-        device=device,
-        verbose=False
-    )
+    results = model.predict(source=image_path, conf=conf, iou=iou, imgsz=imgsz, device=device, verbose=False)
 
     pred_boxes = []
     if len(results) == 0:
@@ -282,41 +225,24 @@ def compare_two_models():
         gt_boxes = read_yolo_label(label_path, img_w, img_h)
 
         baseline_preds = run_model_on_image(
-            baseline_model,
-            image_path,
-            conf=CONF_THRESH,
-            iou=PRED_IOU_THRESH,
-            imgsz=IMGSZ,
-            device=DEVICE
+            baseline_model, image_path, conf=CONF_THRESH, iou=PRED_IOU_THRESH, imgsz=IMGSZ, device=DEVICE
         )
 
         improved_preds = run_model_on_image(
-            improved_model,
-            image_path,
-            conf=CONF_THRESH,
-            iou=PRED_IOU_THRESH,
-            imgsz=IMGSZ,
-            device=DEVICE
+            improved_model, image_path, conf=CONF_THRESH, iou=PRED_IOU_THRESH, imgsz=IMGSZ, device=DEVICE
         )
 
         baseline_metrics = evaluate_one_image(
-            gt_boxes,
-            baseline_preds,
-            iou_thr=MATCH_IOU_THRESH,
-            class_aware=CLASS_AWARE
+            gt_boxes, baseline_preds, iou_thr=MATCH_IOU_THRESH, class_aware=CLASS_AWARE
         )
 
         improved_metrics = evaluate_one_image(
-            gt_boxes,
-            improved_preds,
-            iou_thr=MATCH_IOU_THRESH,
-            class_aware=CLASS_AWARE
+            gt_boxes, improved_preds, iou_thr=MATCH_IOU_THRESH, class_aware=CLASS_AWARE
         )
 
         row = {
             "image_name": image_name,
             "gt_num": len(gt_boxes),
-
             "baseline_pred_num": len(baseline_preds),
             "baseline_tp": baseline_metrics["tp"],
             "baseline_fp": baseline_metrics["fp"],
@@ -324,7 +250,6 @@ def compare_two_models():
             "baseline_mIoU": baseline_metrics["miou"],
             "baseline_recall": baseline_metrics["recall"],
             "baseline_precision": baseline_metrics["precision"],
-
             "improved_pred_num": len(improved_preds),
             "improved_tp": improved_metrics["tp"],
             "improved_fp": improved_metrics["fp"],
@@ -349,13 +274,22 @@ def compare_two_models():
     os.makedirs(os.path.dirname(OUTPUT_CSV) if os.path.dirname(OUTPUT_CSV) else ".", exist_ok=True)
 
     fieldnames = [
-        "image_name", "gt_num",
-
-        "baseline_pred_num", "baseline_tp", "baseline_fp", "baseline_fn",
-        "baseline_mIoU", "baseline_recall", "baseline_precision",
-
-        "improved_pred_num", "improved_tp", "improved_fp", "improved_fn",
-        "improved_mIoU", "improved_recall", "improved_precision"
+        "image_name",
+        "gt_num",
+        "baseline_pred_num",
+        "baseline_tp",
+        "baseline_fp",
+        "baseline_fn",
+        "baseline_mIoU",
+        "baseline_recall",
+        "baseline_precision",
+        "improved_pred_num",
+        "improved_tp",
+        "improved_fp",
+        "improved_fn",
+        "improved_mIoU",
+        "improved_recall",
+        "improved_precision",
     ]
 
     with open(OUTPUT_CSV, "w", newline="", encoding="utf-8-sig") as f:
