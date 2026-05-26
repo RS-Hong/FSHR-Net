@@ -1,22 +1,24 @@
 from pathlib import Path
+
 import cv2
 import numpy as np
-from ultralytics import YOLO, RTDETR
+
+from ultralytics import RTDETR, YOLO
 
 # =========================
 # 配置区：直接改这里
 # =========================
 MODEL_PATH = r"G:\对比权重\HRSID\Ours.pt"
-DATA_ROOT = r"images/HRSID"   # 里面必须包含 images 和 labels
+DATA_ROOT = r"images/HRSID"  # 里面必须包含 images 和 labels
 SAVE_DIR = r"D:\code\ultralytics-SAR-V2\optimg\HRSID\OursHRSID"
 
-USE_RTDETR = False       # RT-DETR权重就改成 True；YOLO权重就改成 False
+USE_RTDETR = False  # RT-DETR权重就改成 True；YOLO权重就改成 False
 IMGSZ = 640
-CONF_THRES = 0.5         # 预测置信度阈值
-IOU_NMS_THRES = 0.4      # 预测阶段 NMS 阈值
-IOU_MATCH_THRES = 0.5    # 评估/显示 TP-FP-FN 时，预测与GT的匹配阈值
+CONF_THRES = 0.5  # 预测置信度阈值
+IOU_NMS_THRES = 0.4  # 预测阶段 NMS 阈值
+IOU_MATCH_THRES = 0.5  # 评估/显示 TP-FP-FN 时，预测与GT的匹配阈值
 MAX_DET = 300
-DEVICE = "0"             # "0" 表示 cuda:0, "cpu" 表示 CPU，空字符串表示自动
+DEVICE = "0"  # "0" 表示 cuda:0, "cpu" 表示 CPU，空字符串表示自动
 
 # 标签格式：
 # "auto" = 自动识别（推荐）：5列按YOLO水平框，9列按YOLO OBB四点框
@@ -35,7 +37,7 @@ IMG_SUFFIXES = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
 
 
 def polygon_area(poly):
-    """poly: (N,2)"""
+    """Poly: (N,2)."""
     if poly is None or len(poly) < 3:
         return 0.0
     x = poly[:, 0]
@@ -44,7 +46,7 @@ def polygon_area(poly):
 
 
 def reorder_quad_clockwise(pts):
-    """将四点重排成顺时针，便于计算与绘制。"""
+    """将四点重排成顺时针，便于计算与绘制。."""
     pts = np.asarray(pts, dtype=np.float32).reshape(4, 2)
     center = pts.mean(axis=0)
     angles = np.arctan2(pts[:, 1] - center[1], pts[:, 0] - center[0])
@@ -56,7 +58,7 @@ def reorder_quad_clockwise(pts):
 
 
 def quad_iou(quad1, quad2):
-    """quad: (4,2), convex quadrilateral IoU"""
+    """Quad: (4,2), convex quadrilateral IoU."""
     q1 = reorder_quad_clockwise(quad1).astype(np.float32)
     q2 = reorder_quad_clockwise(quad2).astype(np.float32)
     a1 = polygon_area(q1)
@@ -101,13 +103,12 @@ def bbox_cxcywh_to_quad(cx, cy, bw, bh, img_w, img_h):
 
 
 def load_label_as_quads(label_path, img_w, img_h, label_format="auto"):
-    """
-    统一读取标签并转成四点框 quad。
+    """统一读取标签并转成四点框 quad。.
 
     支持三种模式：
     1) auto: 自动识别
-       - 5列: class cx cy w h            (YOLO水平框)
-       - 9列: class x1 y1 ... x4 y4      (YOLO OBB四点框)
+    - 5列: class cx cy w h            (YOLO水平框)
+    - 9列: class x1 y1 ... x4 y4      (YOLO OBB四点框)
     2) bbox: 强制按 YOLO 水平框读取
     3) obb : 强制按 YOLO OBB 四点框读取
 
@@ -117,7 +118,7 @@ def load_label_as_quads(label_path, img_w, img_h, label_format="auto"):
     if not Path(label_path).exists():
         return gts
 
-    with open(label_path, "r", encoding="utf-8") as f:
+    with open(label_path, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if not line:
@@ -218,9 +219,7 @@ def extract_predictions(result):
 
 
 def greedy_match_quads(preds, gts, iou_thr=0.5):
-    """
-    preds: [{"cls": int, "conf": float, "quad": (4,2)}, ...]
-    gts:   [{"cls": int, "quad": (4,2)}, ...]
+    """preds: [{"cls": int, "conf": float, "quad": (4,2)}, ...] gts: [{"cls": int, "quad": (4,2)}, ...].
     """
     candidates = []
     for pi, p in enumerate(preds):
@@ -259,7 +258,7 @@ def draw_label_box(img, text, x, y, color):
     font = cv2.FONT_HERSHEY_SIMPLEX
     scale = 0.55
     thickness = 1
-    (tw, th), baseline = cv2.getTextSize(text, font, scale, thickness)
+    (tw, th), _baseline = cv2.getTextSize(text, font, scale, thickness)
     x = int(x)
     y = int(y)
     cv2.rectangle(img, (x, y - th - 8), (x + tw + 6, y), color, -1)
@@ -316,9 +315,7 @@ def main():
 
         preds = extract_predictions(result)
 
-        matched_pairs, unmatched_pred_idxs, unmatched_gt_idxs = greedy_match_quads(
-            preds, gts, iou_thr=IOU_MATCH_THRES
-        )
+        matched_pairs, unmatched_pred_idxs, unmatched_gt_idxs = greedy_match_quads(preds, gts, iou_thr=IOU_MATCH_THRES)
 
         vis = img.copy()
 
