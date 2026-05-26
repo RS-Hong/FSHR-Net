@@ -1,4 +1,3 @@
-import os
 import random
 import shutil
 from pathlib import Path
@@ -12,8 +11,7 @@ def split_dataset(
     val_ratio=0.3,
     test_ratio=0.2,
 ):
-    assert abs(train_ratio + val_ratio + test_ratio - 1.0) < 1e-6, \
-        "Ratios must sum to 1."
+    assert abs(train_ratio + val_ratio + test_ratio - 1.0) < 1e-6, "Ratios must sum to 1."
 
     random.seed(seed)
 
@@ -38,8 +36,8 @@ def split_dataset(
     n_val = int(total * val_ratio)
 
     train_ids = image_stems[:n_train]
-    val_ids = image_stems[n_train:n_train + n_val]
-    test_ids = image_stems[n_train + n_val:]
+    val_ids = image_stems[n_train : n_train + n_val]
+    test_ids = image_stems[n_train + n_val :]
 
     splits = {
         "train": train_ids,
@@ -70,12 +68,8 @@ def split_dataset(
 
 
 if __name__ == "__main__":
-    dataset_root = r"D:\code\ultralytics-SAR-V2\SAR_ship_dataset"     # ← 修改这里
-    output_root = r"D:\code\ultralytics-SAR-V2\SAR_ship_dataset\split_dataset"           # ← 修改这里
-    seed = 42                                 # ← 你的随机种子
+    dataset_root = r"D:\code\ultralytics-SAR-V2\SAR_ship_dataset"  # ← 修改这里
+    output_root = r"D:\code\ultralytics-SAR-V2\SAR_ship_dataset\split_dataset"  # ← 修改这里
+    seed = 42  # ← 你的随机种子
 
-    split_dataset(
-        dataset_root=dataset_root,
-        output_root=output_root,
-        seed=seed
-    )
+    split_dataset(dataset_root=dataset_root, output_root=output_root, seed=seed)
