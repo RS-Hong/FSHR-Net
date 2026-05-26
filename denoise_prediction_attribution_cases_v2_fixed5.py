@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Prediction-related evidence script for DenoiseBlock in YOLOv8 SAR detection.
 
@@ -17,15 +16,16 @@ What this script does
 
 This script is CONFIG-driven only. Edit CONFIG below and run directly.
 """
+
 from __future__ import annotations
 
 import csv
-import math
 import os
 import sys
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any
 
 os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 os.environ.setdefault("OMP_NUM_THREADS", "1")
@@ -54,9 +54,8 @@ CONFIG = {
     "label_dir": r"images/HRSID/labels",
     "outdir": r"绘图/1",
     "image_exts": [".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff"],
-    "max_images": 0,                 # 0 = all
+    "max_images": 0,  # 0 = all
     "max_cases_per_image": 1,
-
     # runtime
     "imgsz": 640,
     "conf": 0.3,
@@ -64,17 +63,15 @@ CONFIG = {
     "device": "0",
     "ultra_root": r"D:/code/ultralytics-SAR-V2",
     "list_modules_only": False,
-
     # matching / selection
-    "target_class": None,            # e.g. 0, or None for all classes
+    "target_class": None,  # e.g. 0, or None for all classes
     "match_iou": 0.5,
     "fp_suppress_iou": 0.3,
-    "score_probe_iou": 0.1,          # when querying a candidate score near a target box
+    "score_probe_iou": 0.1,  # when querying a candidate score near a target box
     "topk_fp_cases": 4,
     "topk_tp_cases": 4,
     "topk_support_channels": 6,
     "support_ring_scale": 1.5,
-
     # modules inside +Denoise model for same-model support analysis / bypass
     # set to your actual DenoiseBlock layers
     "denoise_layers": [
@@ -93,7 +90,7 @@ def ensure_dir(path: str | Path) -> Path:
     return p
 
 
-def add_ultralytics_repo_to_path(repo_root: Optional[str]) -> None:
+def add_ultralytics_repo_to_path(repo_root: str | None) -> None:
     if repo_root:
         repo_root = os.path.abspath(repo_root)
         if repo_root not in sys.path:
@@ -102,6 +99,7 @@ def add_ultralytics_repo_to_path(repo_root: Optional[str]) -> None:
 
 def import_yolo_class():
     from ultralytics import YOLO
+
     return YOLO
 
 
@@ -166,7 +164,7 @@ def overlay_heatmap_on_image(image_bgr: np.ndarray, heatmap01: np.ndarray, alpha
     return cv2.addWeighted(image_bgr, 1.0 - alpha, hm_color, alpha, 0)
 
 
-def resize_map_to_image(x: np.ndarray, target_hw: Tuple[int, int]) -> np.ndarray:
+def resize_map_to_image(x: np.ndarray, target_hw: tuple[int, int]) -> np.ndarray:
     h, w = target_hw
     return cv2.resize(x.astype(np.float32), (w, h), interpolation=cv2.INTER_CUBIC)
 
@@ -184,16 +182,16 @@ def energy_map(feat: torch.Tensor) -> np.ndarray:
 
 def draw_boxes(
     image_bgr: np.ndarray,
-    boxes_xyxy: Optional[np.ndarray],
-    labels: Optional[List[str]] = None,
-    color: Tuple[int, int, int] = (0, 255, 0),
+    boxes_xyxy: np.ndarray | None,
+    labels: list[str] | None = None,
+    color: tuple[int, int, int] = (0, 255, 0),
     thickness: int = 2,
 ) -> np.ndarray:
     canvas = image_bgr.copy()
     if boxes_xyxy is None or len(boxes_xyxy) == 0:
         return canvas
     for i, box in enumerate(boxes_xyxy):
-        x1, y1, x2, y2 = [int(round(v)) for v in box[:4]]
+        x1, y1, x2, y2 = [round(v) for v in box[:4]]
         cv2.rectangle(canvas, (x1, y1), (x2, y2), color, thickness)
         if labels is not None and i < len(labels):
             cv2.putText(canvas, labels[i], (x1, max(18, y1 - 5)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2, cv2.LINE_AA)
@@ -203,13 +201,22 @@ def draw_boxes(
 def draw_gt_boxes(image_bgr: np.ndarray, gt_boxes: np.ndarray, gt_classes: np.ndarray) -> np.ndarray:
     canvas = image_bgr.copy()
     for box, cls in zip(gt_boxes, gt_classes):
-        x1, y1, x2, y2 = [int(round(v)) for v in box[:4]]
+        x1, y1, x2, y2 = [round(v) for v in box[:4]]
         cv2.rectangle(canvas, (x1, y1), (x2, y2), (255, 255, 255), 2)
-        cv2.putText(canvas, f"gt:{int(cls)}", (x1, max(18, y1 - 5)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2, cv2.LINE_AA)
+        cv2.putText(
+            canvas,
+            f"gt:{int(cls)}",
+            (x1, max(18, y1 - 5)),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.5,
+            (255, 255, 255),
+            2,
+            cv2.LINE_AA,
+        )
     return canvas
 
 
-def find_images(folder: Path, exts: Sequence[str]) -> List[Path]:
+def find_images(folder: Path, exts: Sequence[str]) -> list[Path]:
     exts_low = {e.lower() for e in exts}
     return [p for p in sorted(folder.rglob("*")) if p.suffix.lower() in exts_low]
 
@@ -218,7 +225,7 @@ def find_images(folder: Path, exts: Sequence[str]) -> List[Path]:
 # labels / boxes / matching
 # -----------------------------------------------------------------------------
 def xywhn_to_xyxy(row: Sequence[float], img_w: int, img_h: int) -> np.ndarray:
-    cls, xc, yc, w, h = row[:5]
+    _cls, xc, yc, w, h = row[:5]
     bw = float(w) * img_w
     bh = float(h) * img_h
     cx = float(xc) * img_w
@@ -230,11 +237,11 @@ def xywhn_to_xyxy(row: Sequence[float], img_w: int, img_h: int) -> np.ndarray:
     return np.array([x1, y1, x2, y2], dtype=np.float32)
 
 
-def read_yolo_label_file(path: Path, img_w: int, img_h: int, target_class: Optional[int]) -> Tuple[np.ndarray, np.ndarray]:
+def read_yolo_label_file(path: Path, img_w: int, img_h: int, target_class: int | None) -> tuple[np.ndarray, np.ndarray]:
     if not path.exists():
         return np.zeros((0, 4), dtype=np.float32), np.zeros((0,), dtype=np.int32)
-    boxes: List[np.ndarray] = []
-    classes: List[int] = []
+    boxes: list[np.ndarray] = []
+    classes: list[int] = []
     for line in path.read_text(encoding="utf-8").splitlines():
         s = line.strip()
         if not s:
@@ -276,10 +283,10 @@ class PredSummary:
     tp_flags: np.ndarray
     matched_gt: np.ndarray
     fp_flags: np.ndarray
-    fn_gt_indices: List[int]
+    fn_gt_indices: list[int]
 
 
-def extract_preds(result, target_class: Optional[int]) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+def extract_preds(result, target_class: int | None) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     if result.boxes is None or len(result.boxes) == 0:
         return (
             np.zeros((0, 4), dtype=np.float32),
@@ -308,7 +315,9 @@ def match_predictions_to_gt(
     fp = np.zeros((n,), dtype=bool)
     matched_gt = np.full((n,), -1, dtype=np.int32)
     if len(boxes) == 0:
-        return PredSummary(boxes, confs, classes, tp, matched_gt, np.zeros((0,), dtype=bool), list(range(len(gt_boxes))))
+        return PredSummary(
+            boxes, confs, classes, tp, matched_gt, np.zeros((0,), dtype=bool), list(range(len(gt_boxes)))
+        )
     order = np.argsort(-confs)
     used_gt = set()
     ious = box_iou_matrix(boxes, gt_boxes)
@@ -334,7 +343,7 @@ def match_predictions_to_gt(
     return PredSummary(boxes, confs, classes, tp, matched_gt, fp, fn_gt)
 
 
-def best_overlap_same_class(box: np.ndarray, cls: int, boxes: np.ndarray, classes: np.ndarray) -> Tuple[float, int]:
+def best_overlap_same_class(box: np.ndarray, cls: int, boxes: np.ndarray, classes: np.ndarray) -> tuple[float, int]:
     if len(boxes) == 0:
         return 0.0, -1
     keep = classes == int(cls)
@@ -350,11 +359,11 @@ def best_overlap_same_class(box: np.ndarray, cls: int, boxes: np.ndarray, classe
 # -----------------------------------------------------------------------------
 # YOLO helpers / hooks / patchers
 # -----------------------------------------------------------------------------
-def get_named_modules(model) -> List[Tuple[str, torch.nn.Module]]:
+def get_named_modules(model) -> list[tuple[str, torch.nn.Module]]:
     return list(model.model.named_modules())
 
 
-def choose_module_by_name(modules: Sequence[Tuple[str, torch.nn.Module]], target_name: str) -> torch.nn.Module:
+def choose_module_by_name(modules: Sequence[tuple[str, torch.nn.Module]], target_name: str) -> torch.nn.Module:
     for name, module in modules:
         if name == target_name:
             return module
@@ -392,7 +401,9 @@ def build_predict_source(img: np.ndarray, in_channels: int) -> np.ndarray:
 
 
 def run_predict(model, source_img_for_predict: np.ndarray, imgsz: int, conf: float, iou: float, device: str):
-    results = model.predict(source=source_img_for_predict, imgsz=imgsz, conf=conf, iou=iou, device=device, verbose=False)
+    results = model.predict(
+        source=source_img_for_predict, imgsz=imgsz, conf=conf, iou=iou, device=device, verbose=False
+    )
     if len(results) == 0:
         raise RuntimeError("No results returned by model.predict")
     return results[0]
@@ -400,7 +411,7 @@ def run_predict(model, source_img_for_predict: np.ndarray, imgsz: int, conf: flo
 
 class OutputHook:
     def __init__(self, module: torch.nn.Module):
-        self.output: Optional[torch.Tensor] = None
+        self.output: torch.Tensor | None = None
         self.handle = module.register_forward_hook(self._hook)
 
     def _hook(self, module, inputs, output):
@@ -417,9 +428,10 @@ class OutputHook:
 
 class DenoiseIOCapture:
     """Capture input/output of a DenoiseBlock in the SAME trained denoise model."""
+
     def __init__(self, module: torch.nn.Module):
         self.module = module
-        self.cache: Dict[str, torch.Tensor] = {}
+        self.cache: dict[str, torch.Tensor] = {}
         self._orig_forward = None
 
     def patch(self):
@@ -461,14 +473,17 @@ class DenoiseIOCapture:
 
 class ModuleBypass:
     """Bypass a module with identity: y = x."""
+
     def __init__(self, module: torch.nn.Module):
         self.module = module
         self._orig_forward = None
 
     def patch(self):
         self._orig_forward = self.module.forward
+
         def forward_identity(x, *args, **kwargs):
             return x
+
         self.module.forward = forward_identity
 
     def restore(self):
@@ -479,7 +494,9 @@ class ModuleBypass:
 # -----------------------------------------------------------------------------
 # ROI support analysis within SAME denoise model
 # -----------------------------------------------------------------------------
-def box_to_feature_coords(box: np.ndarray, img_hw: Tuple[int, int], feat_hw: Tuple[int, int]) -> Tuple[int, int, int, int]:
+def box_to_feature_coords(
+    box: np.ndarray, img_hw: tuple[int, int], feat_hw: tuple[int, int]
+) -> tuple[int, int, int, int]:
     ih, iw = img_hw
     fh, fw = feat_hw
     x1, y1, x2, y2 = box.astype(np.float32).tolist()
@@ -494,7 +511,9 @@ def box_to_feature_coords(box: np.ndarray, img_hw: Tuple[int, int], feat_hw: Tup
     return fx1, fy1, fx2, fy2
 
 
-def roi_ring_masks(feat_hw: Tuple[int, int], box: np.ndarray, img_hw: Tuple[int, int], scale: float = 1.5) -> Tuple[np.ndarray, np.ndarray]:
+def roi_ring_masks(
+    feat_hw: tuple[int, int], box: np.ndarray, img_hw: tuple[int, int], scale: float = 1.5
+) -> tuple[np.ndarray, np.ndarray]:
     h, w = feat_hw
     fx1, fy1, fx2, fy2 = box_to_feature_coords(box, img_hw, feat_hw)
     roi = np.zeros((h, w), dtype=np.uint8)
@@ -502,25 +521,26 @@ def roi_ring_masks(feat_hw: Tuple[int, int], box: np.ndarray, img_hw: Tuple[int,
 
     cx = (fx1 + fx2) / 2.0
     cy = (fy1 + fy2) / 2.0
-    bw = (fx2 - fx1)
-    bh = (fy2 - fy1)
-    rx1 = max(int(round(cx - scale * bw / 2.0)), 0)
-    ry1 = max(int(round(cy - scale * bh / 2.0)), 0)
-    rx2 = min(int(round(cx + scale * bw / 2.0)), w)
-    ry2 = min(int(round(cy + scale * bh / 2.0)), h)
+    bw = fx2 - fx1
+    bh = fy2 - fy1
+    rx1 = max(round(cx - scale * bw / 2.0), 0)
+    ry1 = max(round(cy - scale * bh / 2.0), 0)
+    rx2 = min(round(cx + scale * bw / 2.0), w)
+    ry2 = min(round(cy + scale * bh / 2.0), h)
     ring = np.zeros((h, w), dtype=np.uint8)
     ring[ry1:ry2, rx1:rx2] = 1
     ring = np.clip(ring - roi, 0, 1)
     return roi, ring
 
 
-def per_channel_roi_ring_support(feat: torch.Tensor, box: np.ndarray, img_hw: Tuple[int, int], ring_scale: float = 1.5) -> Dict[str, np.ndarray]:
-    """
-    Local support proxy for one channel.
+def per_channel_roi_ring_support(
+    feat: torch.Tensor, box: np.ndarray, img_hw: tuple[int, int], ring_scale: float = 1.5
+) -> dict[str, np.ndarray]:
+    """Local support proxy for one channel.
 
     support_c = mean_ROI(|x_c|) - mean_ring(|x_c|)
 
-    Notes
+    Notes:
     -----
     - We intentionally use absolute response magnitude because DenoiseBlock itself computes
       per-channel statistics from abs(x), and soft-thresholding acts on |x|.
@@ -579,12 +599,21 @@ def make_pred_status_overlay(
     for j in pred.fn_gt_indices:
         box = gt_boxes[j]
         cls = gt_classes[j]
-        x1, y1, x2, y2 = [int(round(v)) for v in box[:4]]
+        x1, y1, x2, y2 = [round(v) for v in box[:4]]
         cv2.rectangle(canvas, (x1, y1), (x2, y2), (0, 0, 255), 2)
-        cv2.putText(canvas, f"FN gt:{int(cls)}", (x1, max(18, y1 - 5)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2, cv2.LINE_AA)
+        cv2.putText(
+            canvas,
+            f"FN gt:{int(cls)}",
+            (x1, max(18, y1 - 5)),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.5,
+            (0, 0, 255),
+            2,
+            cv2.LINE_AA,
+        )
     # TP pred in green, FP pred in yellow
     for i, box in enumerate(pred.boxes):
-        x1, y1, x2, y2 = [int(round(v)) for v in box[:4]]
+        x1, y1, x2, y2 = [round(v) for v in box[:4]]
         cls = int(pred.classes[i])
         conf = float(pred.confs[i])
         if pred.tp_flags[i]:
@@ -600,7 +629,9 @@ def make_pred_status_overlay(
     return cv2.cvtColor(canvas, cv2.COLOR_BGR2RGB)
 
 
-def find_candidate_score_near_box(result, target_box: np.ndarray, target_cls: int, iou_thr: float, target_class: Optional[int]) -> float:
+def find_candidate_score_near_box(
+    result, target_box: np.ndarray, target_cls: int, iou_thr: float, target_class: int | None
+) -> float:
     boxes, confs, classes = extract_preds(result, target_class)
     if len(boxes) == 0:
         return 0.0
@@ -632,7 +663,7 @@ class ImageCompare:
 
 @dataclass
 class CaseItem:
-    case_type: str            # baseline_fp / denoise_tp
+    case_type: str  # baseline_fp / denoise_tp
     image_path: str
     image_stem: str
     cls: int
@@ -700,8 +731,8 @@ def build_image_compare(image_path: Path, base_model, dn_model, cfg: dict) -> Im
     )
 
 
-def collect_cases(comp: ImageCompare, cfg: dict) -> List[CaseItem]:
-    cases: List[CaseItem] = []
+def collect_cases(comp: ImageCompare, cfg: dict) -> list[CaseItem]:
+    cases: list[CaseItem] = []
     img_stem = Path(comp.image_path).stem
 
     # baseline-only FP that denoise no longer keeps nearby
@@ -711,15 +742,17 @@ def collect_cases(comp: ImageCompare, cfg: dict) -> List[CaseItem]:
         conf = float(comp.baseline_pred.confs[i])
         ov, idx = best_overlap_same_class(box, cls, comp.denoise_pred.boxes, comp.denoise_pred.classes)
         if idx < 0 or ov < float(cfg["fp_suppress_iou"]):
-            cases.append(CaseItem(
-                case_type="baseline_fp",
-                image_path=comp.image_path,
-                image_stem=img_stem,
-                cls=cls,
-                target_box=box.copy(),
-                proxy_score=conf,
-                desc=f"baseline FP suppressed; conf={conf:.3f}",
-            ))
+            cases.append(
+                CaseItem(
+                    case_type="baseline_fp",
+                    image_path=comp.image_path,
+                    image_stem=img_stem,
+                    cls=cls,
+                    target_box=box.copy(),
+                    proxy_score=conf,
+                    desc=f"baseline FP suppressed; conf={conf:.3f}",
+                )
+            )
 
     # denoise-only TP that baseline missed
     used_gt_baseline = set(int(j) for j in comp.baseline_pred.matched_gt[comp.baseline_pred.tp_flags] if int(j) >= 0)
@@ -729,25 +762,27 @@ def collect_cases(comp: ImageCompare, cfg: dict) -> List[CaseItem]:
             box = comp.denoise_pred.boxes[i]
             cls = int(comp.denoise_pred.classes[i])
             conf = float(comp.denoise_pred.confs[i])
-            cases.append(CaseItem(
-                case_type="denoise_tp",
-                image_path=comp.image_path,
-                image_stem=img_stem,
-                cls=cls,
-                target_box=box.copy(),
-                proxy_score=conf,
-                desc=f"denoise TP recovered; conf={conf:.3f}",
-            ))
+            cases.append(
+                CaseItem(
+                    case_type="denoise_tp",
+                    image_path=comp.image_path,
+                    image_stem=img_stem,
+                    cls=cls,
+                    target_box=box.copy(),
+                    proxy_score=conf,
+                    desc=f"denoise TP recovered; conf={conf:.3f}",
+                )
+            )
     return cases
 
 
-def select_cases(all_cases: List[CaseItem], cfg: dict) -> List[CaseItem]:
+def select_cases(all_cases: list[CaseItem], cfg: dict) -> list[CaseItem]:
     max_per_image = int(cfg.get("max_cases_per_image", 1))
-    selected: List[CaseItem] = []
+    selected: list[CaseItem] = []
     for case_type, topk in [("baseline_fp", int(cfg["topk_fp_cases"])), ("denoise_tp", int(cfg["topk_tp_cases"]))]:
         subset = [c for c in all_cases if c.case_type == case_type]
         subset.sort(key=lambda c: -c.proxy_score)
-        per_img: Dict[str, int] = {}
+        per_img: dict[str, int] = {}
         count = 0
         for c in subset:
             if count >= topk:
@@ -764,7 +799,7 @@ def select_cases(all_cases: List[CaseItem], cfg: dict) -> List[CaseItem]:
 # -----------------------------------------------------------------------------
 # per-case rerun / analysis
 # -----------------------------------------------------------------------------
-def get_compare_from_path(comps: List[ImageCompare], path: str) -> ImageCompare:
+def get_compare_from_path(comps: list[ImageCompare], path: str) -> ImageCompare:
     for c in comps:
         if c.image_path == path:
             return c
@@ -773,18 +808,18 @@ def get_compare_from_path(comps: List[ImageCompare], path: str) -> ImageCompare:
 
 def rerun_denoise_with_hooks_and_optional_bypass(
     model_path: str,
-    ultra_root: Optional[str],
+    ultra_root: str | None,
     img_any: np.ndarray,
     cfg: dict,
-    capture_layers: Sequence[Dict[str, str]],
-    bypass_layers: Optional[Sequence[str]] = None,
+    capture_layers: Sequence[dict[str, str]],
+    bypass_layers: Sequence[str] | None = None,
 ):
     add_ultralytics_repo_to_path(ultra_root)
     YOLO = import_yolo_class()
     model = YOLO(str(model_path))
     modules = get_named_modules(model)
-    captures: Dict[str, DenoiseIOCapture] = {}
-    bypassers: List[ModuleBypass] = []
+    captures: dict[str, DenoiseIOCapture] = {}
+    bypassers: list[ModuleBypass] = []
 
     # patch captures on denoise layers
     for item in capture_layers:
@@ -812,7 +847,14 @@ def rerun_denoise_with_hooks_and_optional_bypass(
     return result, {k: v.cache for k, v in captures.items()}
 
 
-def summarize_support_change(cache: Dict[str, torch.Tensor], box: np.ndarray, img_hw: Tuple[int, int], case_type: str, topk: int, ring_scale: float = 1.5):
+def summarize_support_change(
+    cache: dict[str, torch.Tensor],
+    box: np.ndarray,
+    img_hw: tuple[int, int],
+    case_type: str,
+    topk: int,
+    ring_scale: float = 1.5,
+):
     inp = cache["input"]
     out = cache["out"]
     s_in = per_channel_roi_ring_support(inp, box, img_hw, ring_scale=ring_scale)
@@ -849,17 +891,17 @@ def summarize_support_change(cache: Dict[str, torch.Tensor], box: np.ndarray, im
         "title": title,
     }
 
+
 def save_support_figure(
     case: CaseItem,
     layer_name: str,
-    cache: Dict[str, torch.Tensor],
+    cache: dict[str, torch.Tensor],
     orig_bgr: np.ndarray,
     out_png: Path,
     topk: int,
     ring_scale: float = 1.5,
 ) -> None:
-    """
-    Visualize ROI-vs-ring local support change for one DenoiseBlock.
+    """Visualize ROI-vs-ring local support change for one DenoiseBlock.
 
     support_c = mean_ROI(|x_c|) - mean_ring(|x_c|)
 
@@ -883,8 +925,14 @@ def save_support_figure(
     target_boxes = np.array([case.target_box], dtype=np.float32)
     target_labels = [f"target cls={case.cls}"]
 
-    in_canvas = cv2.cvtColor(draw_boxes(overlay_heatmap_on_image(orig_bgr, in_map), target_boxes, target_labels, color=(255,255,255)), cv2.COLOR_BGR2RGB)
-    out_canvas = cv2.cvtColor(draw_boxes(overlay_heatmap_on_image(orig_bgr, out_map), target_boxes, target_labels, color=(255,255,255)), cv2.COLOR_BGR2RGB)
+    in_canvas = cv2.cvtColor(
+        draw_boxes(overlay_heatmap_on_image(orig_bgr, in_map), target_boxes, target_labels, color=(255, 255, 255)),
+        cv2.COLOR_BGR2RGB,
+    )
+    out_canvas = cv2.cvtColor(
+        draw_boxes(overlay_heatmap_on_image(orig_bgr, out_map), target_boxes, target_labels, color=(255, 255, 255)),
+        cv2.COLOR_BGR2RGB,
+    )
 
     idx = summ["top_idx"]
     support_in = summ["support_in"][idx] if len(idx) else np.array([], dtype=np.float32)
@@ -933,12 +981,18 @@ def save_triptych_case(comp: ImageCompare, img_bgr: np.ndarray, out_png: Path) -
     gt_img = draw_gt_boxes(img_bgr, comp.gt_boxes, comp.gt_classes)
     gt_img = cv2.cvtColor(gt_img, cv2.COLOR_BGR2RGB)
     base_img = make_pred_status_overlay(
-        img_bgr, comp.gt_boxes, comp.gt_classes, comp.baseline_pred,
-        title_text=f"baseline | TP={int(comp.baseline_pred.tp_flags.sum())} FP={int(comp.baseline_pred.fp_flags.sum())} FN={len(comp.baseline_pred.fn_gt_indices)}"
+        img_bgr,
+        comp.gt_boxes,
+        comp.gt_classes,
+        comp.baseline_pred,
+        title_text=f"baseline | TP={int(comp.baseline_pred.tp_flags.sum())} FP={int(comp.baseline_pred.fp_flags.sum())} FN={len(comp.baseline_pred.fn_gt_indices)}",
     )
     den_img = make_pred_status_overlay(
-        img_bgr, comp.gt_boxes, comp.gt_classes, comp.denoise_pred,
-        title_text=f"+Denoise | TP={int(comp.denoise_pred.tp_flags.sum())} FP={int(comp.denoise_pred.fp_flags.sum())} FN={len(comp.denoise_pred.fn_gt_indices)}"
+        img_bgr,
+        comp.gt_boxes,
+        comp.gt_classes,
+        comp.denoise_pred,
+        title_text=f"+Denoise | TP={int(comp.denoise_pred.tp_flags.sum())} FP={int(comp.denoise_pred.fp_flags.sum())} FN={len(comp.denoise_pred.fn_gt_indices)}",
     )
     fig, axes = plt.subplots(1, 3, figsize=(16, 5.6), constrained_layout=True)
     for ax, arr, title in zip(axes, [gt_img, base_img, den_img], ["GT", "baseline", "+Denoise"]):
@@ -949,12 +1003,9 @@ def save_triptych_case(comp: ImageCompare, img_bgr: np.ndarray, out_png: Path) -
     plt.close(fig)
 
 
-def build_image_level_score_groups(comp: ImageCompare, cfg: dict) -> Dict[str, List[Tuple[str, int, np.ndarray]]]:
-    """
-    Return per-image score groups:
-    - fn_cases: GTs recovered only by +Denoise (baseline FN -> denoise TP)
-    - fp_cases: baseline-only false positives suppressed by +Denoise
-    Each item is (label, cls, target_box).
+def build_image_level_score_groups(comp: ImageCompare, cfg: dict) -> dict[str, list[tuple[str, int, np.ndarray]]]:
+    """Return per-image score groups: - fn_cases: GTs recovered only by +Denoise (baseline FN -> denoise TP) - fp_cases:
+    baseline-only false positives suppressed by +Denoise Each item is (label, cls, target_box).
     """
     out = {"fn_cases": [], "fp_cases": []}
     # FN recovery cases: iterate denoise TPs whose matched GT was not matched by baseline
@@ -963,7 +1014,9 @@ def build_image_level_score_groups(comp: ImageCompare, cfg: dict) -> Dict[str, L
     for i in np.where(comp.denoise_pred.tp_flags)[0].tolist():
         gt_j = int(comp.denoise_pred.matched_gt[i])
         if gt_j not in used_gt_baseline:
-            out["fn_cases"].append((f"FN-{fn_id}", int(comp.denoise_pred.classes[i]), comp.denoise_pred.boxes[i].copy()))
+            out["fn_cases"].append(
+                (f"FN-{fn_id}", int(comp.denoise_pred.classes[i]), comp.denoise_pred.boxes[i].copy())
+            )
             fn_id += 1
     # FP suppression cases: iterate baseline FPs that denoise no longer keeps nearby
     fp_id = 1
@@ -976,16 +1029,32 @@ def build_image_level_score_groups(comp: ImageCompare, cfg: dict) -> Dict[str, L
             fp_id += 1
     return out
 
-def draw_case_labels(canvas_bgr: np.ndarray, items: Dict[str, List[Tuple[str, int, np.ndarray]]], color: Tuple[int, int, int] = (255, 255, 255)) -> np.ndarray:
+
+def draw_case_labels(
+    canvas_bgr: np.ndarray,
+    items: dict[str, list[tuple[str, int, np.ndarray]]],
+    color: tuple[int, int, int] = (255, 255, 255),
+) -> np.ndarray:
     canvas = canvas_bgr.copy()
     for group_items in items.values():
         for label, cls, box in group_items:
-            x1, y1, x2, y2 = [int(round(v)) for v in box[:4]]
-            cv2.putText(canvas, label, (x1, min(canvas.shape[0] - 5, y2 + 16)), cv2.FONT_HERSHEY_SIMPLEX, 0.55, color, 2, cv2.LINE_AA)
+            x1, _y1, _x2, y2 = [round(v) for v in box[:4]]
+            cv2.putText(
+                canvas,
+                label,
+                (x1, min(canvas.shape[0] - 5, y2 + 16)),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.55,
+                color,
+                2,
+                cv2.LINE_AA,
+            )
     return canvas
 
 
-def with_case_labels(rgb_or_bgr: np.ndarray, items: Dict[str, List[Tuple[str, int, np.ndarray]]], is_rgb: bool = True) -> np.ndarray:
+def with_case_labels(
+    rgb_or_bgr: np.ndarray, items: dict[str, list[tuple[str, int, np.ndarray]]], is_rgb: bool = True
+) -> np.ndarray:
     if is_rgb:
         bgr = cv2.cvtColor(rgb_or_bgr, cv2.COLOR_RGB2BGR)
         out = draw_case_labels(bgr, items)
@@ -1009,7 +1078,7 @@ def save_case_prediction_and_scores(
     )
 
     # bypass each layer and all layers
-    bypass_results: Dict[str, Any] = {}
+    bypass_results: dict[str, Any] = {}
     bypass_specs = []
     for item in cfg["denoise_layers"]:
         bypass_specs.append((f"bypass_{item['name']}", [item["module"]]))
@@ -1028,7 +1097,12 @@ def save_case_prediction_and_scores(
 
     base_panel = make_pred_status_overlay(img_bgr, comp.gt_boxes, comp.gt_classes, comp.baseline_pred)
     base_panel = with_case_labels(base_panel, groups, is_rgb=True)
-    den_pred = match_predictions_to_gt(*extract_preds(comp.denoise_result, cfg.get("target_class")), comp.gt_boxes, comp.gt_classes, float(cfg["match_iou"]))
+    den_pred = match_predictions_to_gt(
+        *extract_preds(comp.denoise_result, cfg.get("target_class")),
+        comp.gt_boxes,
+        comp.gt_classes,
+        float(cfg["match_iou"]),
+    )
     den_panel = make_pred_status_overlay(img_bgr, comp.gt_boxes, comp.gt_classes, den_pred)
     den_panel = with_case_labels(den_panel, groups, is_rgb=True)
 
@@ -1065,7 +1139,9 @@ def save_case_prediction_and_scores(
     ]
 
     fig, axes = plt.subplots(1, 2, figsize=(14.8, 4.8), constrained_layout=True)
-    for ax, group_key, title in zip(axes, ["fn_cases", "fp_cases"], ["FN recovery score proxy", "FP suppression score proxy"]):
+    for ax, group_key, title in zip(
+        axes, ["fn_cases", "fp_cases"], ["FN recovery score proxy", "FP suppression score proxy"]
+    ):
         items = groups[group_key]
         if len(items) == 0:
             ax.text(0.5, 0.5, "No cases in this image", ha="center", va="center", fontsize=12)
@@ -1077,19 +1153,31 @@ def save_case_prediction_and_scores(
             vals = []
             has_box = []
             for label, cls, box in items:
-                v = find_candidate_score_near_box(result_obj, box, cls, float(cfg["score_probe_iou"]), cfg.get("target_class"))
+                v = find_candidate_score_near_box(
+                    result_obj, box, cls, float(cfg["score_probe_iou"]), cfg.get("target_class")
+                )
                 vals.append(v)
                 has_box.append(v > 0)
-            xpos = x + (j - (len(score_series_order)-1)/2.0) * width
+            xpos = x + (j - (len(score_series_order) - 1) / 2.0) * width
             bars = ax.bar(xpos, vals, width=width, label=model_name)
             for b, ok, v in zip(bars, has_box, vals):
                 if not ok:
                     b.set_facecolor((0.75, 0.75, 0.75, 0.9))
-                    b.set_edgecolor('black')
-                    b.set_hatch('//')
-                    ax.text(b.get_x() + b.get_width()/2, 0.01, 'none', ha='center', va='bottom', rotation=90, fontsize=8)
+                    b.set_edgecolor("black")
+                    b.set_hatch("//")
+                    ax.text(
+                        b.get_x() + b.get_width() / 2, 0.01, "none", ha="center", va="bottom", rotation=90, fontsize=8
+                    )
                 else:
-                    ax.text(b.get_x() + b.get_width()/2, v + 0.01, f'{v:.2f}', ha='center', va='bottom', rotation=90, fontsize=8)
+                    ax.text(
+                        b.get_x() + b.get_width() / 2,
+                        v + 0.01,
+                        f"{v:.2f}",
+                        ha="center",
+                        va="bottom",
+                        rotation=90,
+                        fontsize=8,
+                    )
         ax.set_xticks(x)
         ax.set_xticklabels([label for label, _, _ in items])
         ax.set_ylabel("candidate score near selected box")
@@ -1103,12 +1191,21 @@ def save_case_prediction_and_scores(
     return caches_normal
 
 
-
 # -----------------------------------------------------------------------------
 # main
 # -----------------------------------------------------------------------------
 def validate_config(cfg: dict) -> None:
-    required = ["baseline_model", "denoise_model", "image_dir", "label_dir", "outdir", "imgsz", "conf", "nms_iou", "device"]
+    required = [
+        "baseline_model",
+        "denoise_model",
+        "image_dir",
+        "label_dir",
+        "outdir",
+        "imgsz",
+        "conf",
+        "nms_iou",
+        "device",
+    ]
     for k in required:
         if k not in cfg:
             raise KeyError(f"CONFIG missing: {k}")
@@ -1129,8 +1226,12 @@ def main() -> None:
     denoise_model = YOLO(str(cfg["denoise_model"]))
 
     # save module lists too
-    (outdir / "99_named_modules_baseline.txt").write_text(get_named_modules_text(baseline_model, "baseline"), encoding="utf-8")
-    (outdir / "99_named_modules_denoise.txt").write_text(get_named_modules_text(denoise_model, "+denoise"), encoding="utf-8")
+    (outdir / "99_named_modules_baseline.txt").write_text(
+        get_named_modules_text(baseline_model, "baseline"), encoding="utf-8"
+    )
+    (outdir / "99_named_modules_denoise.txt").write_text(
+        get_named_modules_text(denoise_model, "+denoise"), encoding="utf-8"
+    )
 
     image_paths = find_images(Path(cfg["image_dir"]), cfg["image_exts"])
     if int(cfg.get("max_images", 0)) > 0:
@@ -1139,24 +1240,26 @@ def main() -> None:
     trip_dir = ensure_dir(outdir / "triptychs")
     case_dir = ensure_dir(outdir / "case_evidence")
 
-    comps: List[ImageCompare] = []
-    all_cases: List[CaseItem] = []
+    comps: list[ImageCompare] = []
+    all_cases: list[CaseItem] = []
 
     # collect comparisons
-    rows_csv: List[Dict[str, Any]] = []
+    rows_csv: list[dict[str, Any]] = []
     for i, img_path in enumerate(image_paths, 1):
         comp = build_image_compare(img_path, baseline_model, denoise_model, cfg)
         comps.append(comp)
         all_cases.extend(collect_cases(comp, cfg))
-        rows_csv.append({
-            "image": img_path.name,
-            "baseline_tp": int(comp.baseline_pred.tp_flags.sum()),
-            "baseline_fp": int(comp.baseline_pred.fp_flags.sum()),
-            "baseline_fn": len(comp.baseline_pred.fn_gt_indices),
-            "denoise_tp": int(comp.denoise_pred.tp_flags.sum()),
-            "denoise_fp": int(comp.denoise_pred.fp_flags.sum()),
-            "denoise_fn": len(comp.denoise_pred.fn_gt_indices),
-        })
+        rows_csv.append(
+            {
+                "image": img_path.name,
+                "baseline_tp": int(comp.baseline_pred.tp_flags.sum()),
+                "baseline_fp": int(comp.baseline_pred.fp_flags.sum()),
+                "baseline_fn": len(comp.baseline_pred.fn_gt_indices),
+                "denoise_tp": int(comp.denoise_pred.tp_flags.sum()),
+                "denoise_fp": int(comp.denoise_pred.fp_flags.sum()),
+                "denoise_fn": len(comp.denoise_pred.fn_gt_indices),
+            }
+        )
         # always export triptych
         save_triptych_case(comp, to_bgr_uint8(read_image_any(img_path)), trip_dir / f"{img_path.stem}_triptych.png")
         print(f"[{i}/{len(image_paths)}] {img_path.name}")
@@ -1174,14 +1277,16 @@ def main() -> None:
         writer = csv.DictWriter(f, fieldnames=["case_type", "image_path", "image_stem", "cls", "proxy_score", "desc"])
         writer.writeheader()
         for c in selected_cases:
-            writer.writerow({
-                "case_type": c.case_type,
-                "image_path": c.image_path,
-                "image_stem": c.image_stem,
-                "cls": c.cls,
-                "proxy_score": c.proxy_score,
-                "desc": c.desc,
-            })
+            writer.writerow(
+                {
+                    "case_type": c.case_type,
+                    "image_path": c.image_path,
+                    "image_stem": c.image_stem,
+                    "cls": c.cls,
+                    "proxy_score": c.proxy_score,
+                    "desc": c.desc,
+                }
+            )
 
     # build evidence for selected cases
     for idx, case in enumerate(selected_cases, 1):
