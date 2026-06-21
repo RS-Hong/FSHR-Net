@@ -12,7 +12,6 @@ import torch.nn as nn
 
 from ultralytics.nn.autobackend import check_class_names
 from ultralytics.nn.modules import (
-    C2f_L,
     AIFI,
     C1,
     C2,
@@ -32,6 +31,7 @@ from ultralytics.nn.modules import (
     Bottleneck,
     BottleneckCSP,
     C2f,
+    C2f_L,
     C2fAttn,
     C2fCIB,
     C2fPSA,
@@ -73,10 +73,6 @@ from ultralytics.nn.modules import (
     YOLOESegment,
     YOLOESegment26,
     v10Detect,
-    SCRM,
-    DenoiseBlock,
-    SAREnhanceLiteV2,
-    SAWC
 )
 from ultralytics.utils import DEFAULT_CFG_DICT, LOGGER, YAML, colorstr, emojis
 from ultralytics.utils.checks import check_requirements, check_suffix, check_yaml
@@ -103,6 +99,7 @@ from ultralytics.utils.torch_utils import (
     time_sync,
 )
 
+
 def get_manifold_loss(model):
     model_ = model.module if hasattr(model, "module") else model
     device = next(model_.parameters()).device
@@ -113,11 +110,14 @@ def get_manifold_loss(model):
             loss = loss + m.loss_manifold
 
     return loss.squeeze()
+
+
 def set_manifold_loss_enabled(model, enabled: bool):
     model_ = model.module if hasattr(model, "module") else model
     for m in model_.modules():
         if hasattr(m, "enable_manifold_loss"):
             m.enable_manifold_loss = enabled
+
 
 class BaseModel(torch.nn.Module):
     """Base class for all YOLO models in the Ultralytics family.
