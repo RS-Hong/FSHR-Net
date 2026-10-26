@@ -2,8 +2,6 @@ name: FSHR protected runtime
 
 on:
   workflow_dispatch:
-  push:
-    branches: [fshr-key-free-runtime]
 
 permissions:
   contents: read
