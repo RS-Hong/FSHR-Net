@@ -32,7 +32,7 @@ def main():
     parser.add_argument("--warmup", type=int, default=30)
     parser.add_argument("--iterations", type=int, default=100)
     parser.add_argument("--rounds", type=int, default=3)
-    parser.add_argument("--native", action="store_true", help="Disable FSHR M5 for comparison")
+    parser.add_argument("--native", action="store_true", help="Disable FSHR prediction acceleration for comparison")
     parser.add_argument("--output", type=Path, default=Path("fshr_benchmark.json"))
     args = parser.parse_args()
     if min(args.imgsz, args.images, args.warmup, args.iterations, args.rounds) < 1:
@@ -64,7 +64,7 @@ def main():
         parser.error("This CUDA timing protocol requires a CUDA GPU.")
     report = getattr(predictor.model, "fshr_inference", None)
     if not args.native and not (report and report.get("enabled")):
-        raise RuntimeError(f"The supplied checkpoint did not enable FSHR M5: {report}")
+        raise RuntimeError(f"The supplied checkpoint did not enable FSHR prediction acceleration: {report}")
     deployment = predictor.model.model
     channels = predictor.model.ch
     if channels not in (1, 3):

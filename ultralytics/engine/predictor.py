@@ -416,7 +416,7 @@ class BasePredictor:
                 self.model.fshr_inference = report
                 if report["enabled"]:
                     if verbose:
-                        LOGGER.info("FSHR prediction: M5 deployment enabled (train/val model unchanged).")
+                        LOGGER.info("FSHR prediction acceleration enabled.")
                 else:
                     LOGGER.warning(f"FSHR prediction: {report['reason']}")
         self.model = attempt_compile(self.model, device=self.device, mode=self.args.compile)
