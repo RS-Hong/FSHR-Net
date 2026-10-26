@@ -212,3 +212,9 @@ visualize_*
 wmrb_*
 
 
+# Private encryption keys and local benchmark artifacts must never be published.
+*.git-crypt.key
+fshr_benchmark*.json
+ultralytics/settings.json
+ultralytics/persistent_cache.json
+

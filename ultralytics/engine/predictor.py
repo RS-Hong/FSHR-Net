@@ -387,6 +387,9 @@ class BasePredictor:
             model (str | Path | torch.nn.Module, optional): Model to load or use.
             verbose (bool): Whether to print verbose output.
         """
+        from ultralytics.nn.modules.fshr_inference import optimize_prediction, prediction_copy
+
+        model = prediction_copy(model)
         if hasattr(model, "end2end"):
             if self.args.end2end is not None:
                 model.end2end = self.args.end2end
@@ -407,6 +410,15 @@ class BasePredictor:
         if hasattr(self.model, "imgsz") and not getattr(self.model, "dynamic", False):
             self.args.imgsz = self.model.imgsz  # reuse imgsz from export metadata
         self.model.eval()
+        if self.model.pt and not self.args.compile:
+            report = optimize_prediction(self.model.model)
+            if report is not None:
+                self.model.fshr_inference = report
+                if report["enabled"]:
+                    if verbose:
+                        LOGGER.info("FSHR prediction: M5 deployment enabled (train/val model unchanged).")
+                else:
+                    LOGGER.warning(f"FSHR prediction: {report['reason']}")
         self.model = attempt_compile(self.model, device=self.device, mode=self.args.compile)
 
     def write_results(self, i: int, p: Path, im: torch.Tensor, s: list[str]) -> str:
