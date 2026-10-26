@@ -1,0 +1,129 @@
+{
+  "python": "CPython 3.11",
+  "architectures": [
+    "Windows x86_64",
+    "Linux x86_64 glibc 2.17+"
+  ],
+  "files": [
+    {
+      "path": "cp311-linux_x86_64/__init__.cpython-311-x86_64-linux-gnu.so",
+      "size": 40360,
+      "sha256": "289c785b57ce8c6b0eb828c05707397bb03bd71b01dfe2f546d0b01738cb1858"
+    },
+    {
+      "path": "cp311-linux_x86_64/activation.cpython-311-x86_64-linux-gnu.so",
+      "size": 51888,
+      "sha256": "792e5b4318175f3e417e4380ec0b6d446caf8b95010b03915f93215023ce9cd9"
+    },
+    {
+      "path": "cp311-linux_x86_64/block.cpython-311-x86_64-linux-gnu.so",
+      "size": 902008,
+      "sha256": "226246c7cf2768d483de04ac5081dc50b103908a6bc2664af5a5cff855c5165c"
+    },
+    {
+      "path": "cp311-linux_x86_64/conv.cpython-311-x86_64-linux-gnu.so",
+      "size": 201216,
+      "sha256": "7d605de1da335b7e439250b3955031c85909c741081201fd1cdebcbb9a3ebacc"
+    },
+    {
+      "path": "cp311-linux_x86_64/denoise.cpython-311-x86_64-linux-gnu.so",
+      "size": 72224,
+      "sha256": "dcdbb7adbf9ac45452f60e63b5bb4e1193b92a8f2bf4b25d10ab001fef26f044"
+    },
+    {
+      "path": "cp311-linux_x86_64/enhance.cpython-311-x86_64-linux-gnu.so",
+      "size": 81088,
+      "sha256": "fb08581dd6fe6739a1074d73c660c7358e92f0f369fb14befa17cbba1314bcdd"
+    },
+    {
+      "path": "cp311-linux_x86_64/fshr_inference.cpython-311-x86_64-linux-gnu.so",
+      "size": 159880,
+      "sha256": "10c5476edf43f9e3d49a09657a1ab41d01e7e15d2c858c06b4a67a537da2de4b"
+    },
+    {
+      "path": "cp311-linux_x86_64/head.cpython-311-x86_64-linux-gnu.so",
+      "size": 725664,
+      "sha256": "c015b59dba1c8106643c15de07ae3f05c77317c9396955898efaa39ea301f6fc"
+    },
+    {
+      "path": "cp311-linux_x86_64/liu.cpython-311-x86_64-linux-gnu.so",
+      "size": 133512,
+      "sha256": "8a4dc662b43df81a1559a35bcff7f5b1be8aabad31a2040ff26fed7ae2446b6f"
+    },
+    {
+      "path": "cp311-linux_x86_64/new.cpython-311-x86_64-linux-gnu.so",
+      "size": 95648,
+      "sha256": "3abf050220d4363e07f3035975556f652c087623426433a2e5acd9b9c058098a"
+    },
+    {
+      "path": "cp311-linux_x86_64/transformer.cpython-311-x86_64-linux-gnu.so",
+      "size": 287864,
+      "sha256": "6f09746674c801a1099b4c0faea21e2037ae93a74f7295355ede4f7885b9f8de"
+    },
+    {
+      "path": "cp311-linux_x86_64/utils.cpython-311-x86_64-linux-gnu.so",
+      "size": 84048,
+      "sha256": "04c17cc79db0c004949fcaee3946601ea189f4814d102b5a2f29e4fe6e0231d2"
+    },
+    {
+      "path": "cp311-win_amd64/__init__.cp311-win_amd64.pyd",
+      "size": 50176,
+      "sha256": "89a5ea8180133659eadf279fec861c8d4d3bdd0d307fef3df685cba6ec7eaad9"
+    },
+    {
+      "path": "cp311-win_amd64/activation.cp311-win_amd64.pyd",
+      "size": 60416,
+      "sha256": "044e1ef82493c7f03cb30c5ad628c87dd2ac6e3e61738cf69bce20e99092f0bb"
+    },
+    {
+      "path": "cp311-win_amd64/block.cp311-win_amd64.pyd",
+      "size": 1033216,
+      "sha256": "1469c4614b976b1de8a7d39f7af83f329181554427145c8fa264aca4eb0ff194"
+    },
+    {
+      "path": "cp311-win_amd64/conv.cp311-win_amd64.pyd",
+      "size": 235520,
+      "sha256": "35eec7f57385704e85ce1aa16554a4e6e8b634fabcc64521a8ad0ee47abb994a"
+    },
+    {
+      "path": "cp311-win_amd64/denoise.cp311-win_amd64.pyd",
+      "size": 84992,
+      "sha256": "d2d903c6df2658988b84a9766bc43d6cd099b45beed7022a2f334c6576e9132e"
+    },
+    {
+      "path": "cp311-win_amd64/enhance.cp311-win_amd64.pyd",
+      "size": 96768,
+      "sha256": "318e869761a3d82b09941ca25d75ec953606964744e096bdfdd5ff6934ef7ec8"
+    },
+    {
+      "path": "cp311-win_amd64/fshr_inference.cp311-win_amd64.pyd",
+      "size": 190976,
+      "sha256": "51ea5f56d783c8b34256507d079bdfb5c6af82aa71448a314f224902e300e9ce"
+    },
+    {
+      "path": "cp311-win_amd64/head.cp311-win_amd64.pyd",
+      "size": 855552,
+      "sha256": "913a42dcb749b681b83001136bce551f5c87288b4861879e252066f748489e49"
+    },
+    {
+      "path": "cp311-win_amd64/liu.cp311-win_amd64.pyd",
+      "size": 162304,
+      "sha256": "e86f5e26b0176d15b749e5685885e80c713637080d727b1b2e13f498fef7f5c0"
+    },
+    {
+      "path": "cp311-win_amd64/new.cp311-win_amd64.pyd",
+      "size": 115200,
+      "sha256": "42057633ac82a51c34f01438c45519e275862d77102e87b59ba70f48604cb6b4"
+    },
+    {
+      "path": "cp311-win_amd64/transformer.cp311-win_amd64.pyd",
+      "size": 337920,
+      "sha256": "1c7435577c4917bfb8a762b41082d3672e851c535030e37be7f3707c10acf867"
+    },
+    {
+      "path": "cp311-win_amd64/utils.cp311-win_amd64.pyd",
+      "size": 101888,
+      "sha256": "a78b23a5bbeaec72527790f705da8f20eb2ec2fe70d51885a1f2a84065106362"
+    }
+  ]
+}

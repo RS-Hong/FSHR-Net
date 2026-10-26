@@ -6,6 +6,10 @@ import importlib
 import os
 from typing import TYPE_CHECKING
 
+from ultralytics._protected_runtime import enable_protected_runtime
+
+enable_protected_runtime()
+
 # Set ENV variables (place before imports)
 if not os.environ.get("OMP_NUM_THREADS"):
     os.environ["OMP_NUM_THREADS"] = "1"  # default for reduced CPU utilization during training

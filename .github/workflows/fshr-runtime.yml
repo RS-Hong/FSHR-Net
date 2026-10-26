@@ -1,0 +1,33 @@
+name: FSHR protected runtime
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [fshr-key-free-runtime]
+
+permissions:
+  contents: read
+
+jobs:
+  prediction:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    env:
+      YOLO_AUTOINSTALL: "false"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install runtime dependencies
+        run: |
+          python -m pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install "numpy<2" "opencv-python-headless<4.12" pillow pyyaml requests scipy matplotlib psutil polars ultralytics-thop tqdm einops
+      - name: Test encrypted checkout without a key
+        run: python tests/check_fshr_runtime.py

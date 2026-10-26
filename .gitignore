@@ -218,3 +218,7 @@ fshr_benchmark*.json
 ultralytics/settings.json
 ultralytics/persistent_cache.json
 
+# Public compiled runtimes; their source files remain protected.
+!ultralytics/_fshr_runtime/*/*.pyd
+!ultralytics/_fshr_runtime/*/*.so
+
