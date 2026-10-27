@@ -1,6 +1,6 @@
 # Frequency-Decoupled Structural Reformulation and Hierarchical Response Refinement for SAR Ship Detection
 
-Core source files are protected. Prediction runs without an unlock key using the bundled Windows and Linux runtime modules (x86_64, Python 3.11). The full unencrypted code will be released after the paper is accepted.
+Core source files are protected. Prediction runs without an unlock key. The full unencrypted code will be released after the paper is accepted.
 
 ## Prediction
 
