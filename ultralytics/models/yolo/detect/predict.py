@@ -64,7 +64,7 @@ class DetectionPredictor(BasePredictor):
             return_idxs=save_feats,
         )
 
-        if not isinstance(orig_imgs, list):  # input images are a torch.Tensor, not a list
+        if not isinstance(orig_imgs, list):
             orig_imgs = ops.convert_torch2numpy_batch(orig_imgs)[..., ::-1]
 
         if save_feats:
@@ -75,7 +75,7 @@ class DetectionPredictor(BasePredictor):
 
         if save_feats:
             for r, f in zip(results, obj_feats):
-                r.feats = f  # add object features to results
+                r.feats = f
 
         return results
 
@@ -84,11 +84,11 @@ class DetectionPredictor(BasePredictor):
         """Extract object features from the feature maps."""
         import torch
 
-        s = min(x.shape[1] for x in feat_maps)  # find shortest vector length
+        s = min(x.shape[1] for x in feat_maps)
         obj_feats = torch.cat(
             [x.permute(0, 2, 3, 1).reshape(x.shape[0], -1, s, x.shape[1] // s).mean(dim=-1) for x in feat_maps], dim=1
-        )  # mean reduce all vectors to same length
-        return [feats[idx] if idx.shape[0] else [] for feats, idx in zip(obj_feats, idxs)]  # for each img in batch
+        )
+        return [feats[idx] if idx.shape[0] else [] for feats, idx in zip(obj_feats, idxs)]
 
     def construct_results(self, preds, img, orig_imgs):
         """Construct a list of Results objects from model predictions.

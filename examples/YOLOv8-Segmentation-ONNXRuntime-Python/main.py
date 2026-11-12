@@ -84,16 +84,16 @@ class YOLOv8Seg:
         Returns:
             (np.ndarray): Resized and padded image.
         """
-        shape = img.shape[:2]  # current shape [height, width]
+        shape = img.shape[:2]
 
-        # Scale ratio (new / old)
+
         r = min(new_shape[0] / shape[0], new_shape[1] / shape[1])
 
-        # Compute padding
-        new_unpad = round(shape[1] * r), round(shape[0] * r)
-        dw, dh = (new_shape[1] - new_unpad[0]) / 2, (new_shape[0] - new_unpad[1]) / 2  # wh padding
 
-        if shape[::-1] != new_unpad:  # resize
+        new_unpad = round(shape[1] * r), round(shape[0] * r)
+        dw, dh = (new_shape[1] - new_unpad[0]) / 2, (new_shape[0] - new_unpad[1]) / 2
+
+        if shape[::-1] != new_unpad:
             img = cv2.resize(img, new_unpad, interpolation=cv2.INTER_LINEAR)
         top, bottom = round(dh - 0.1), round(dh + 0.1)
         left, right = round(dw - 0.1), round(dw + 0.1)
@@ -113,9 +113,9 @@ class YOLOv8Seg:
                 to [0, 1].
         """
         img = self.letterbox(img, new_shape)
-        img = img[..., ::-1].transpose([2, 0, 1])[None]  # BGR to RGB, BHWC to BCHW
+        img = img[..., ::-1].transpose([2, 0, 1])[None]
         img = np.ascontiguousarray(img)
-        img = img.astype(np.float32) / 255  # Normalize to [0, 1]
+        img = img.astype(np.float32) / 255
         return img
 
     def postprocess(self, img: np.ndarray, prep_img: np.ndarray, outs: list) -> list[Results]:
@@ -155,11 +155,11 @@ class YOLOv8Seg:
         Returns:
             (torch.Tensor): Binary segmentation masks with shape (N, height, width).
         """
-        c, mh, mw = protos.shape  # CHW
-        masks = (masks_in @ protos.float().view(c, -1)).view(-1, mh, mw)  # Matrix multiplication
-        masks = ops.scale_masks(masks[None], shape)[0]  # Scale masks to original image size
-        masks = ops.crop_mask(masks, bboxes)  # Crop masks to bounding boxes
-        return masks.gt_(0.0)  # Convert to binary masks
+        c, mh, mw = protos.shape
+        masks = (masks_in @ protos.float().view(c, -1)).view(-1, mh, mw)
+        masks = ops.scale_masks(masks[None], shape)[0]
+        masks = ops.crop_mask(masks, bboxes)
+        return masks.gt_(0.0)
 
 
 if __name__ == "__main__":

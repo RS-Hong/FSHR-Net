@@ -3,34 +3,34 @@ import cv2
 import numpy as np
 from ultralytics import YOLO, RTDETR
 
-# =========================
-# 配置区：直接改这里
-# =========================
+
+
+
 MODEL_PATH = r"G:\对比权重\HRSID\Ours.pt"
-DATA_ROOT = r"images/HRSID"   # 里面必须包含 images 和 labels
+DATA_ROOT = r"images/HRSID"
 SAVE_DIR = r"D:\code\ultralytics-SAR-V2\optimg\HRSID\OursHRSID"
 
-USE_RTDETR = False       # RT-DETR权重就改成 True；YOLO权重就改成 False
+USE_RTDETR = False
 IMGSZ = 640
-CONF_THRES = 0.5         # 预测置信度阈值
-IOU_NMS_THRES = 0.4      # 预测阶段 NMS 阈值
-IOU_MATCH_THRES = 0.5    # 评估/显示 TP-FP-FN 时，预测与GT的匹配阈值
+CONF_THRES = 0.5
+IOU_NMS_THRES = 0.4
+IOU_MATCH_THRES = 0.5
 MAX_DET = 300
-DEVICE = "0"             # "0" 表示 cuda:0, "cpu" 表示 CPU，空字符串表示自动
+DEVICE = "0"
 
-# 标签格式：
-# "auto" = 自动识别（推荐）：5列按YOLO水平框，9列按YOLO OBB四点框
-# "bbox" = 强制按  class cx cy w h  读取
-# "obb"  = 强制按  class x1 y1 x2 y2 x3 y3 x4 y4  读取
+
+
+
+
 LABEL_FORMAT = "auto"
 
-# 是否递归读取 images 下所有子目录
+
 RECURSIVE = True
 
-# 是否显示文字（TP/FP/FN + 类别 + 置信度）
+
 SHOW_TEXT = False
 
-# 支持的图片后缀
+
 IMG_SUFFIXES = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
 
 
@@ -181,7 +181,7 @@ def get_class_name(class_names, cls_id):
 def extract_predictions(result):
     preds = []
 
-    # 优先读取 OBB 结果，与 case miner 对齐
+
     if hasattr(result, "obb") and result.obb is not None and len(result.obb) > 0:
         obb = result.obb
         xy = obb.xyxyxyxy.cpu().numpy() if hasattr(obb, "xyxyxyxy") else None
@@ -199,7 +199,7 @@ def extract_predictions(result):
                 )
             return preds
 
-    # 没有 OBB 时退回水平框
+
     if hasattr(result, "boxes") and result.boxes is not None and len(result.boxes) > 0:
         boxes = result.boxes
         xyxy = boxes.xyxy.cpu().numpy() if hasattr(boxes, "xyxy") else None
@@ -322,7 +322,7 @@ def main():
 
         vis = img.copy()
 
-        # TP：蓝色
+
         for pi, gi in matched_pairs:
             p = preds[pi]
             cls_name = get_class_name(class_names, int(p["cls"]))
@@ -332,7 +332,7 @@ def main():
             if SHOW_TEXT and text:
                 draw_label_box(vis, text, p0[0], p0[1], (255, 0, 0))
 
-        # FP：黄色
+
         for pi in unmatched_pred_idxs:
             p = preds[pi]
             cls_name = get_class_name(class_names, int(p["cls"]))
@@ -342,7 +342,7 @@ def main():
             if SHOW_TEXT and text:
                 draw_label_box(vis, text, p0[0], p0[1], (0, 255, 255))
 
-        # FN：红色
+
         for gi in unmatched_gt_idxs:
             g = gts[gi]
             cls_name = get_class_name(class_names, int(g["cls"]))

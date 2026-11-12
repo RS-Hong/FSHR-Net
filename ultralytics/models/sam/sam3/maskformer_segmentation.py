@@ -19,7 +19,7 @@ class LinearPresenceHead(nn.Sequential):
 
     def __init__(self, d_model):
         """Initializes the LinearPresenceHead."""
-        # a hack to make `LinearPresenceHead` compatible with old checkpoints
+
         super().__init__(nn.Identity(), nn.Identity(), nn.Linear(d_model, 1))
 
     def forward(self, hs, prompt, prompt_mask):
@@ -39,14 +39,14 @@ class MaskPredictor(nn.Module):
         """Predicts masks from object queries and pixel embeddings."""
         if len(obj_queries.shape) == 3:
             if pixel_embed.ndim == 3:
-                # batch size was omitted
+
                 mask_preds = torch.einsum("bqc,chw->bqhw", self.mask_embed(obj_queries), pixel_embed)
             else:
                 mask_preds = torch.einsum("bqc,bchw->bqhw", self.mask_embed(obj_queries), pixel_embed)
         else:
-            # Assumed to have aux masks
+
             if pixel_embed.ndim == 3:
-                # batch size was omitted
+
                 mask_preds = torch.einsum("lbqc,chw->lbqhw", self.mask_embed(obj_queries), pixel_embed)
             else:
                 mask_preds = torch.einsum("lbqc,bchw->lbqhw", self.mask_embed(obj_queries), pixel_embed)
@@ -90,14 +90,14 @@ class SegmentationHead(nn.Module):
 
         self.act_ckpt = act_ckpt
 
-        # used to update the output dictionary
+
         self.instance_keys = ["pred_masks"]
 
     def _embed_pixels(self, backbone_feats: list[torch.Tensor], encoder_hidden_states) -> torch.Tensor:
         """Embeds pixels using the pixel decoder."""
         if self.use_encoder_inputs:
             backbone_visual_feats = [bb_feat.clone() for bb_feat in backbone_feats]
-            # Extract visual embeddings
+
             encoder_hidden_states = encoder_hidden_states.permute(1, 2, 0)
             spatial_dim = math.prod(backbone_feats[-1].shape[-2:])
             encoder_visual_embed = encoder_hidden_states[..., :spatial_dim].reshape(-1, *backbone_feats[-1].shape[1:])
@@ -111,7 +111,7 @@ class SegmentationHead(nn.Module):
             backbone_feats = [x for x in backbone_feats]
             pixel_embed = self.pixel_decoder(backbone_feats)
             if pixel_embed.shape[0] == 1:
-                # For batch_size=1 training, we can avoid the indexing to save memory
+
                 pixel_embed = pixel_embed.squeeze(0)
             else:
                 pixel_embed = pixel_embed[[0], ...]
@@ -169,7 +169,7 @@ class PixelDecoder(nn.Module):
         self.out_dim = self.conv_layers[-1].out_channels
         if compile_mode is not None:
             self.forward = torch.compile(self.forward, mode=compile_mode, dynamic=True, fullgraph=True)
-            # Needed to make checkpointing happy. But we don't know if the module is checkpointed, so we disable it by default.
+
             torch._dynamo.config.optimize_ddp = False
 
     def forward(self, backbone_feats: list[torch.Tensor]):
@@ -180,7 +180,7 @@ class PixelDecoder(nn.Module):
             curr_fpn = bb_feat
             prev_fpn = curr_fpn + F.interpolate(prev_fpn, size=curr_fpn.shape[-2:], mode=self.interpolation_mode)
             if self.shared_conv:
-                # only one conv layer
+
                 layer_idx = 0
             prev_fpn = self.conv_layers[layer_idx](prev_fpn)
             prev_fpn = F.relu(self.norms[layer_idx](prev_fpn))

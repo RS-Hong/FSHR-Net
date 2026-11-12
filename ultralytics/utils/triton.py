@@ -48,7 +48,7 @@ class TritonRemoteModel:
             endpoint (str, optional): The name of the model on the Triton server.
             scheme (str, optional): The communication scheme ('http' or 'grpc').
         """
-        if not endpoint and not scheme:  # Parse all args from URL string
+        if not endpoint and not scheme:
             splits = urlsplit(url)
             endpoint = splits.path.strip("/").split("/", 1)[0]
             scheme = splits.scheme
@@ -57,7 +57,7 @@ class TritonRemoteModel:
         self.endpoint = endpoint
         self.url = url
 
-        # Choose the Triton client based on the communication scheme
+
         if scheme == "http":
             import tritonclient.http as client
 
@@ -69,10 +69,10 @@ class TritonRemoteModel:
             self.triton_client = client.InferenceServerClient(url=self.url, verbose=False, ssl=False)
             config = self.triton_client.get_model_config(endpoint, as_json=True)["config"]
 
-        # Sort output names alphabetically, i.e. 'output0', 'output1', etc.
+
         config["output"] = sorted(config["output"], key=lambda x: x.get("name"))
 
-        # Define model attributes
+
         type_map = {"TYPE_FP32": np.float32, "TYPE_FP16": np.float16, "TYPE_UINT8": np.uint8}
         self.InferRequestedOutput = client.InferRequestedOutput
         self.InferInput = client.InferInput

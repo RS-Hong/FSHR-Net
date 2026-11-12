@@ -55,70 +55,70 @@ def run_ray_tune(
 
     checks.check_version(ray.__version__, ">=2.0.0", "ray")
     default_space = {
-        # 'optimizer': tune.choice(['SGD', 'Adam', 'AdamW', 'NAdam', 'RAdam', 'RMSProp']),
+
         "lr0": tune.uniform(1e-5, 1e-1),
-        "lrf": tune.uniform(0.01, 1.0),  # final OneCycleLR learning rate (lr0 * lrf)
-        "momentum": tune.uniform(0.6, 0.98),  # SGD momentum/Adam beta1
-        "weight_decay": tune.uniform(0.0, 0.001),  # optimizer weight decay
-        "warmup_epochs": tune.uniform(0.0, 5.0),  # warmup epochs (fractions ok)
-        "warmup_momentum": tune.uniform(0.0, 0.95),  # warmup initial momentum
-        "box": tune.uniform(0.02, 0.2),  # box loss gain
-        "cls": tune.uniform(0.2, 4.0),  # cls loss gain (scale with pixels)
-        "hsv_h": tune.uniform(0.0, 0.1),  # image HSV-Hue augmentation (fraction)
-        "hsv_s": tune.uniform(0.0, 0.9),  # image HSV-Saturation augmentation (fraction)
-        "hsv_v": tune.uniform(0.0, 0.9),  # image HSV-Value augmentation (fraction)
-        "degrees": tune.uniform(0.0, 45.0),  # image rotation (+/- deg)
-        "translate": tune.uniform(0.0, 0.9),  # image translation (+/- fraction)
-        "scale": tune.uniform(0.0, 0.9),  # image scale (+/- gain)
-        "shear": tune.uniform(0.0, 10.0),  # image shear (+/- deg)
-        "perspective": tune.uniform(0.0, 0.001),  # image perspective (+/- fraction), range 0-0.001
-        "flipud": tune.uniform(0.0, 1.0),  # image flip up-down (probability)
-        "fliplr": tune.uniform(0.0, 1.0),  # image flip left-right (probability)
-        "bgr": tune.uniform(0.0, 1.0),  # swap RGB↔BGR channels (probability)
-        "mosaic": tune.uniform(0.0, 1.0),  # image mosaic (probability)
-        "mixup": tune.uniform(0.0, 1.0),  # image mixup (probability)
-        "cutmix": tune.uniform(0.0, 1.0),  # image cutmix (probability)
-        "copy_paste": tune.uniform(0.0, 1.0),  # segment copy-paste (probability)
+        "lrf": tune.uniform(0.01, 1.0),
+        "momentum": tune.uniform(0.6, 0.98),
+        "weight_decay": tune.uniform(0.0, 0.001),
+        "warmup_epochs": tune.uniform(0.0, 5.0),
+        "warmup_momentum": tune.uniform(0.0, 0.95),
+        "box": tune.uniform(0.02, 0.2),
+        "cls": tune.uniform(0.2, 4.0),
+        "hsv_h": tune.uniform(0.0, 0.1),
+        "hsv_s": tune.uniform(0.0, 0.9),
+        "hsv_v": tune.uniform(0.0, 0.9),
+        "degrees": tune.uniform(0.0, 45.0),
+        "translate": tune.uniform(0.0, 0.9),
+        "scale": tune.uniform(0.0, 0.9),
+        "shear": tune.uniform(0.0, 10.0),
+        "perspective": tune.uniform(0.0, 0.001),
+        "flipud": tune.uniform(0.0, 1.0),
+        "fliplr": tune.uniform(0.0, 1.0),
+        "bgr": tune.uniform(0.0, 1.0),
+        "mosaic": tune.uniform(0.0, 1.0),
+        "mixup": tune.uniform(0.0, 1.0),
+        "cutmix": tune.uniform(0.0, 1.0),
+        "copy_paste": tune.uniform(0.0, 1.0),
     }
 
-    # Put the model in ray store
+
     task = model.task
     model_in_store = ray.put(model)
     base_name = train_args.get("name", "tune")
 
     def _tune(config):
         """Train the YOLO model with the specified hyperparameters and return results."""
-        model_to_train = ray.get(model_in_store)  # get the model from ray store for tuning
+        model_to_train = ray.get(model_in_store)
         model_to_train.reset_callbacks()
         config.update(train_args)
 
-        # Set trial-specific name for W&B logging
+
         try:
-            trial_id = tune.get_trial_id()  # Get current trial ID (e.g., "2c2fc_00000")
+            trial_id = tune.get_trial_id()
             trial_suffix = trial_id.split("_")[-1] if "_" in trial_id else trial_id
             config["name"] = f"{base_name}_{trial_suffix}"
         except Exception:
-            # Not in Ray Tune context or error getting trial ID, use base name
+
             config["name"] = base_name
 
         results = model_to_train.train(**config)
         return results.results_dict
 
-    # Get search space
+
     if not space and not train_args.get("resume"):
         space = default_space
         LOGGER.warning("Search space not provided, using default search space.")
 
-    # Get dataset
+
     data = train_args.get("data", TASK2DATA[task])
     space["data"] = data
     if "data" not in train_args:
         LOGGER.warning(f'Data not provided, using default "data={data}".')
 
-    # Define the trainable function with allocated resources
+
     trainable_with_resources = tune.with_resources(_tune, {"cpu": NUM_THREADS, "gpu": gpu_per_trial or 0})
 
-    # Define the ASHA scheduler for hyperparameter search
+
     asha_scheduler = ASHAScheduler(
         time_attr="epoch",
         metric=TASK2METRIC[task],
@@ -128,17 +128,17 @@ def run_ray_tune(
         reduction_factor=3,
     )
 
-    # Define the callbacks for the hyperparameter search
+
     tuner_callbacks = [WandbLoggerCallback(project="YOLOv8-tune")] if wandb else []
 
-    # Create the Ray Tune hyperparameter search tuner
+
     tune_dir = get_save_dir(
         get_cfg(
             DEFAULT_CFG,
-            {**train_args, **{"exist_ok": train_args.pop("resume", False)}},  # resume w/ same tune_dir
+            {**train_args, **{"exist_ok": train_args.pop("resume", False)}},
         ),
-        name=train_args.pop("name", "tune"),  # runs/{task}/{tune_dir}
-    )  # must be absolute dir
+        name=train_args.pop("name", "tune"),
+    )
     tune_dir.mkdir(parents=True, exist_ok=True)
     if tune.Tuner.can_restore(tune_dir):
         LOGGER.info(f"{colorstr('Tuner: ')} Resuming tuning run {tune_dir}...")
@@ -156,13 +156,13 @@ def run_ray_tune(
             run_config=RunConfig(callbacks=tuner_callbacks, storage_path=tune_dir.parent, name=tune_dir.name),
         )
 
-    # Run the hyperparameter search
+
     tuner.fit()
 
-    # Get the results of the hyperparameter search
+
     results = tuner.get_results()
 
-    # Shut down Ray to clean up workers
+
     ray.shutdown()
 
     return results

@@ -95,15 +95,15 @@ class TwoWayTransformer(nn.Module):
             queries (torch.Tensor): Processed point embeddings with shape (B, N_points, embedding_dim).
             keys (torch.Tensor): Processed image embeddings with shape (B, H*W, embedding_dim).
         """
-        # BxCxHxW -> BxHWxC == B x N_image_tokens x C
+
         image_embedding = image_embedding.flatten(2).permute(0, 2, 1)
         image_pe = image_pe.flatten(2).permute(0, 2, 1)
 
-        # Prepare queries
+
         queries = point_embedding
         keys = image_embedding
 
-        # Apply transformer blocks and final layernorm
+
         for layer in self.layers:
             queries, keys = layer(
                 queries=queries,
@@ -112,7 +112,7 @@ class TwoWayTransformer(nn.Module):
                 key_pe=image_pe,
             )
 
-        # Apply the final attention layer from the points to the image
+
         q = queries + point_embedding
         k = keys + image_pe
         attn_out = self.final_attn_token_to_image(q=q, k=k, v=keys)
@@ -206,7 +206,7 @@ class TwoWayAttentionBlock(nn.Module):
             queries (torch.Tensor): Processed query embeddings with shape (B, N_queries, embedding_dim).
             keys (torch.Tensor): Processed key embeddings with shape (B, N_keys, embedding_dim).
         """
-        # Self attention block
+
         if self.skip_first_layer_pe:
             queries = self.self_attn(q=queries, k=queries, v=queries)
         else:
@@ -215,19 +215,19 @@ class TwoWayAttentionBlock(nn.Module):
             queries = queries + attn_out
         queries = self.norm1(queries)
 
-        # Cross attention block, tokens attending to image embedding
+
         q = queries + query_pe
         k = keys + key_pe
         attn_out = self.cross_attn_token_to_image(q=q, k=k, v=keys)
         queries = queries + attn_out
         queries = self.norm2(queries)
 
-        # MLP block
+
         mlp_out = self.mlp(queries)
         queries = queries + mlp_out
         queries = self.norm3(queries)
 
-        # Cross attention block, image embedding attending to tokens
+
         q = queries + query_pe
         k = keys + key_pe
         attn_out = self.cross_attn_image_to_token(q=k, k=q, v=queries)
@@ -302,14 +302,14 @@ class Attention(nn.Module):
         """Separate the input tensor into the specified number of attention heads."""
         b, n, c = x.shape
         x = x.reshape(b, n, num_heads, c // num_heads)
-        return x.transpose(1, 2)  # B x N_heads x N_tokens x C_per_head
+        return x.transpose(1, 2)
 
     @staticmethod
     def _recombine_heads(x: Tensor) -> Tensor:
         """Recombine separated attention heads into a single tensor."""
         b, n_heads, n_tokens, c_per_head = x.shape
         x = x.transpose(1, 2)
-        return x.reshape(b, n_tokens, n_heads * c_per_head)  # B x N_tokens x C
+        return x.reshape(b, n_tokens, n_heads * c_per_head)
 
     def forward(self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
         """Apply multi-head attention to query, key, and value tensors with optional downsampling.
@@ -322,23 +322,23 @@ class Attention(nn.Module):
         Returns:
             (torch.Tensor): Output tensor after attention with shape (B, N_q, embedding_dim).
         """
-        # Input projections
+
         q = self.q_proj(q)
         k = self.k_proj(k)
         v = self.v_proj(v)
 
-        # Separate into heads
+
         q = self._separate_heads(q, self.num_heads)
         k = self._separate_heads(k, self.num_heads)
         v = self._separate_heads(v, self.num_heads)
 
-        # Attention
+
         _, _, _, c_per_head = q.shape
-        attn = q @ k.permute(0, 1, 3, 2)  # B x N_heads x N_tokens x N_tokens
+        attn = q @ k.permute(0, 1, 3, 2)
         attn = attn / math.sqrt(c_per_head)
         attn = torch.softmax(attn, dim=-1)
 
-        # Get output
+
         out = attn @ v
         out = self._recombine_heads(out)
         return self.out_proj(out)

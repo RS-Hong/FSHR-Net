@@ -35,7 +35,7 @@ from bs4 import BeautifulSoup
 from minijinja import Environment, load_from_path
 
 try:
-    from plugin import postprocess_site  # mkdocs-ultralytics-plugin
+    from plugin import postprocess_site
 except ImportError:
     postprocess_site = None
 
@@ -44,7 +44,7 @@ from build_reference import build_reference_docs
 from ultralytics.utils import LINUX, LOGGER, MACOS
 from ultralytics.utils.tqdm import TQDM
 
-os.environ["JUPYTER_PLATFORM_DIRS"] = "1"  # fix DeprecationWarning: Jupyter is migrating to use standard platformdirs
+os.environ["JUPYTER_PLATFORM_DIRS"] = "1"
 DOCS = Path(__file__).parent.resolve()
 SITE = DOCS.parent / "site"
 LINK_PATTERN = re.compile(r"(https?://[^\s()<>]*[^\s()<>.,:;!?\'\"])")
@@ -52,10 +52,10 @@ TITLE_PATTERN = re.compile(r"<title>(.*?)</title>", flags=re.IGNORECASE | re.DOT
 MD_LINK_PATTERN = re.compile(r'(["\']?)([^"\'>\s]+?)\.md(["\']?)')
 DOC_KIND_LABELS = {"Class", "Function", "Method", "Property"}
 DOC_KIND_COLORS = {
-    "Class": "#039dfc",  # blue
-    "Method": "#ef5eff",  # magenta
-    "Function": "#fc9803",  # orange
-    "Property": "#02e835",  # green
+    "Class": "#039dfc",
+    "Method": "#ef5eff",
+    "Function": "#fc9803",
+    "Property": "#02e835",
 }
 
 
@@ -66,17 +66,17 @@ def prepare_docs_markdown(clone_repos: bool = True):
     shutil.rmtree(DOCS / "repos", ignore_errors=True)
 
     if clone_repos:
-        # Get docs repo
+
         repo = "https://github.com/ultralytics/docs"
         local_dir = DOCS / "repos" / Path(repo).name
         subprocess.run(
             ["git", "clone", "-q", "--depth=1", "--single-branch", "-b", "main", repo, str(local_dir)], check=True
         )
-        shutil.rmtree(DOCS / "en/compare", ignore_errors=True)  # delete if exists
-        shutil.copytree(local_dir / "docs/en/compare", DOCS / "en/compare")  # for docs
+        shutil.rmtree(DOCS / "en/compare", ignore_errors=True)
+        shutil.copytree(local_dir / "docs/en/compare", DOCS / "en/compare")
         LOGGER.info(f"Cloned/Updated {repo} in {local_dir}")
 
-    # Add frontmatter
+
     for file in TQDM((DOCS / "en").rglob("*.md"), desc="Adding frontmatter"):
         update_markdown_files(file)
 
@@ -86,15 +86,15 @@ def update_markdown_files(md_filepath: Path):
     if md_filepath.exists():
         content = md_filepath.read_text().strip()
 
-        # Replace apostrophes
+
         content = content.replace("‘", "'").replace("’", "'")
 
-        # Add frontmatter if missing
+
         if not content.strip().startswith("---\n"):
             header = "---\ncomments: true\ndescription: TODO ADD DESCRIPTION\nkeywords: TODO ADD KEYWORDS\n---\n\n"
             content = header + content
 
-        # Ensure MkDocs admonitions "=== " lines are preceded and followed by empty newlines
+
         lines = content.split("\n")
         new_lines = []
         for i, line in enumerate(lines):
@@ -109,11 +109,11 @@ def update_markdown_files(md_filepath: Path):
                 new_lines.append(line)
         content = "\n".join(new_lines)
 
-        # Add EOF newline if missing
+
         if not content.endswith("\n"):
             content += "\n"
 
-        # Save page
+
         md_filepath.write_text(content)
     return
 
@@ -150,7 +150,7 @@ def _process_html_file(html_file: Path) -> bool:
     except ValueError:
         rel_path = html_file.name
 
-    # For pages sourced from external repos (compare), drop edit/copy buttons to avoid wrong links
+
     if rel_path.startswith("compare/"):
         before = content
         content = re.sub(
@@ -209,18 +209,18 @@ def update_docs_soup(content: str, html_file: Path | None = None, max_title_leng
         soup = BeautifulSoup(content, "html.parser")
     modified = False
 
-    # Truncate long meta title if needed
+
     title_tag = soup.find("title") if needs_title_trim else None
     if title_tag and len(title_tag.text) > max_title_length and "-" in title_tag.text:
         title_tag.string = title_tag.text.rsplit("-", 1)[0].strip()
         modified = True
 
-    # Find the main content area
+
     main_content = soup.find("main") or soup.find("div", class_="md-content")
     if not main_content:
         return str(soup) if modified else content
 
-    # Convert plaintext links to HTML hyperlinks
+
     if needs_link_conversion:
         for paragraph in main_content.select("p, li"):
             for text_node in paragraph.find_all(string=True, recursive=False):
@@ -230,16 +230,16 @@ def update_docs_soup(content: str, html_file: Path | None = None, max_title_leng
                         text_node.replace_with(BeautifulSoup(new_text, "html.parser"))
                         modified = True
 
-    # Remove href attributes from code line numbers in code blocks
+
     if needs_codelineno_cleanup:
         for a in soup.select('a[href^="#__codelineno-"], a[id^="__codelineno-"]'):
-            if a.string:  # If the a tag has text (the line number)
-                # Check if parent is a span with class="normal"
+            if a.string:
+
                 if a.parent and a.parent.name == "span" and "normal" in a.parent.get("class", []):
                     del a.parent["class"]
-                a.replace_with(a.string)  # Replace with just the text
-            else:  # If it has no text
-                a.replace_with(soup.new_tag("span"))  # Replace with an empty span
+                a.replace_with(a.string)
+            else:
+                a.replace_with(soup.new_tag("span"))
             modified = True
 
     def highlight_labels(nodes):
@@ -293,7 +293,7 @@ def update_docs_soup(content: str, html_file: Path | None = None, max_title_leng
             modified = True
 
     if needs_kind_highlight and not modified and soup.select(".doc-kind"):
-        # Ensure style injection when pre-existing badges are present
+
         modified = True
 
     if modified:
@@ -329,7 +329,7 @@ def _rewrite_md_links(content: str) -> str:
     return "\n".join(lines)
 
 
-# Precompiled regex patterns for minification
+
 HTML_COMMENT = re.compile(r"<!--[\s\S]*?-->")
 HTML_PRESERVE = re.compile(r"<(pre|code|textarea|script)[^>]*>[\s\S]*?</\1>", re.IGNORECASE)
 HTML_TAG_SPACE = re.compile(r">\s+<")
@@ -355,8 +355,8 @@ def remove_comments_and_empty_lines(content: str, file_type: str) -> str:
         - Total JS reduction: 13.51% (99.31 KB saved)
     """
     if file_type == "html":
-        content = HTML_COMMENT.sub("", content)  # Remove HTML comments
-        # Preserve whitespace in <pre>, <code>, <textarea> tags
+        content = HTML_COMMENT.sub("", content)
+
         preserved = []
 
         def preserve(match):
@@ -365,42 +365,42 @@ def remove_comments_and_empty_lines(content: str, file_type: str) -> str:
             return f"___PRESERVE_{len(preserved) - 1}___"
 
         content = HTML_PRESERVE.sub(preserve, content)
-        content = HTML_TAG_SPACE.sub("><", content)  # Remove whitespace between tags
-        content = HTML_MULTI_SPACE.sub(" ", content)  # Collapse multiple spaces
-        content = HTML_EMPTY_LINE.sub("", content)  # Remove empty lines
-        # Restore preserved content
+        content = HTML_TAG_SPACE.sub("><", content)
+        content = HTML_MULTI_SPACE.sub(" ", content)
+        content = HTML_EMPTY_LINE.sub("", content)
+
         for i, text in enumerate(preserved):
             content = content.replace(f"___PRESERVE_{i}___", text)
     elif file_type == "css":
-        content = CSS_COMMENT.sub("", content)  # Remove CSS comments
-        # Remove whitespace around specific characters
+        content = CSS_COMMENT.sub("", content)
+
         content = re.sub(r"\s*([{}:;,])\s*", r"\1", content)
-        # Remove empty lines
+
         content = re.sub(r"^\s*\n", "", content, flags=re.MULTILINE)
-        # Collapse multiple spaces to single space
+
         content = re.sub(r"\s{2,}", " ", content)
-        # Remove all newlines
+
         content = re.sub(r"\n", "", content)
     elif file_type == "js":
-        # Handle JS single-line comments (preserving http:// and https://)
+
         lines = content.split("\n")
         processed_lines = []
         for line in lines:
-            # Only remove comments if they're not part of a URL
+
             if "//" in line and "http://" not in line and "https://" not in line:
                 processed_lines.append(line.partition("//")[0])
             else:
                 processed_lines.append(line)
         content = "\n".join(processed_lines)
 
-        # Remove JS multi-line comments and clean whitespace
+
         content = re.sub(r"/\*[\s\S]*?\*/", "", content)
-        # Remove empty lines
+
         content = re.sub(r"^\s*\n", "", content, flags=re.MULTILINE)
-        # Collapse multiple spaces to single space
+
         content = re.sub(r"\s{2,}", " ", content)
 
-        # Safe space removal around punctuation and operators (never include colons - breaks JS)
+
         content = re.sub(r"\s*([;{}])\s*", r"\1", content)
         content = re.sub(r"(\w)\s*\(|\)\s*{|\s*([+\-*/=])\s*", lambda m: m.group(0).replace(" ", ""), content)
 
@@ -601,21 +601,21 @@ def main():
         build_reference_docs(update_nav=False)
         render_jinja_macros()
 
-        # Remove cloned repos before serving/building to keep the tree lean during mkdocs processing
+
         shutil.rmtree(DOCS / "repos", ignore_errors=True)
 
-        # Build the main documentation
+
         LOGGER.info(f"Building docs from {DOCS}")
         subprocess.run(["zensical", "build", "-f", str(DOCS.parent / "mkdocs.yml")], check=True)
         LOGGER.info(f"Site built at {SITE}")
 
-        # Remove search index JSON files to disable search
+
         Path(SITE / "search.json").unlink(missing_ok=True)
 
-        # Update docs HTML pages
+
         update_docs_html()
 
-        # Post-process site for meta tags, authors, social cards, and mkdocstrings polish
+
         if postprocess_site:
             postprocess_site(
                 site_dir=SITE,
@@ -634,10 +634,10 @@ def main():
         else:
             LOGGER.warning("postprocess_site not available; skipping mkdocstrings postprocessing")
 
-        # Minify files
+
         minify_files(html=False, css=False, js=False)
 
-        # Add missing pages to sitemap
+
         sitemap = SITE / "sitemap.xml"
         if sitemap.exists():
             content = sitemap.read_text()
@@ -656,12 +656,12 @@ def main():
                 else f"{len(in_sitemap)}/{len(all_pages)} pages in sitemap.xml ✅"
             )
 
-        # Print results and auto-serve on macOS
+
         size = sum(f.stat().st_size for f in SITE.rglob("*") if f.is_file()) >> 20
         duration = time.perf_counter() - start_time
         LOGGER.info(f"Docs built correctly ✅ ({size:.1f}MB, {duration:.1f}s)")
 
-        # Restore sources before optionally serving
+
         restore_all()
 
         if (MACOS or LINUX) and not os.getenv("GITHUB_ACTIONS"):

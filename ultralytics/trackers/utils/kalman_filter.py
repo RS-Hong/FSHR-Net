@@ -45,13 +45,13 @@ class KalmanFilterXYAH:
         """
         ndim, dt = 4, 1.0
 
-        # Create Kalman filter model matrices
+
         self._motion_mat = np.eye(2 * ndim, 2 * ndim)
         for i in range(ndim):
             self._motion_mat[i, ndim + i] = dt
         self._update_mat = np.eye(ndim, 2 * ndim)
 
-        # Motion and observation uncertainty are chosen relative to the current state estimate
+
         self._std_weight_position = 1.0 / 20
         self._std_weight_velocity = 1.0 / 160
 
@@ -273,7 +273,7 @@ class KalmanFilterXYAH:
         elif metric == "maha":
             cholesky_factor = np.linalg.cholesky(covariance)
             z = scipy.linalg.solve_triangular(cholesky_factor, d.T, lower=True, check_finite=False, overwrite_b=True)
-            return np.sum(z * z, axis=0)  # square maha
+            return np.sum(z * z, axis=0)
         else:
             raise ValueError("Invalid distance metric")
 

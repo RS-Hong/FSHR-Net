@@ -95,7 +95,7 @@ class ImageEncoderViT(nn.Module):
 
         self.pos_embed: nn.Parameter | None = None
         if use_abs_pos:
-            # Initialize absolute positional embedding with pretrain image size
+
             self.pos_embed = nn.Parameter(torch.zeros(1, img_size // patch_size, img_size // patch_size, embed_dim))
 
         self.blocks = nn.ModuleList()
@@ -199,7 +199,7 @@ class PromptEncoder(nn.Module):
         self.image_embedding_size = image_embedding_size
         self.pe_layer = PositionEmbeddingRandom(embed_dim // 2)
 
-        self.num_point_embeddings: int = 4  # pos/neg point + 2 box corners
+        self.num_point_embeddings: int = 4
         point_embeddings = [nn.Embedding(1, embed_dim) for _ in range(self.num_point_embeddings)]
         self.point_embeddings = nn.ModuleList(point_embeddings)
         self.not_a_point_embed = nn.Embedding(1, embed_dim)
@@ -236,7 +236,7 @@ class PromptEncoder(nn.Module):
 
     def _embed_points(self, points: torch.Tensor, labels: torch.Tensor, pad: bool) -> torch.Tensor:
         """Embed point prompts by applying positional encoding and label-specific embeddings."""
-        points = points + 0.5  # Shift to center of pixel
+        points = points + 0.5
         if pad:
             padding_point = torch.zeros((points.shape[0], 1, 2), dtype=points.dtype, device=points.device)
             padding_label = -torch.ones((labels.shape[0], 1), dtype=labels.dtype, device=labels.device)
@@ -253,7 +253,7 @@ class PromptEncoder(nn.Module):
 
     def _embed_boxes(self, boxes: torch.Tensor) -> torch.Tensor:
         """Embed box prompts by applying positional encoding and adding corner embeddings."""
-        boxes = boxes + 0.5  # Shift to center of pixel
+        boxes = boxes + 0.5
         coords = boxes.reshape(-1, 2, 2)
         corner_embedding = self.pe_layer.forward_with_coords(coords, self.input_image_size)
         corner_embedding[:, 0, :] += self.point_embeddings[2].weight
@@ -360,7 +360,7 @@ class MemoryEncoder(nn.Module):
     def __init__(
         self,
         out_dim,
-        in_dim=256,  # in_dim of pix_feats
+        in_dim=256,
         interpol_size: tuple[int, int] | None = None,
     ):
         """Initialize the MemoryEncoder for encoding pixel features and masks into memory representations.
@@ -396,7 +396,7 @@ class MemoryEncoder(nn.Module):
             masks = F.sigmoid(masks)
         masks = self.mask_downsampler(masks)
 
-        # Fuse pix_feats and downsampled masks, in case the visual features are on CPU, cast them to CUDA
+
         pix_feat = pix_feat.to(masks.device)
 
         x = self.pix_feat_proj(pix_feat)
@@ -461,7 +461,7 @@ class ImageEncoder(nn.Module):
         """Encode input through trunk and neck networks, returning multiscale features and positional encodings."""
         features, pos = self.neck(self.trunk(sample))
         if self.scalp > 0:
-            # Discard the lowest resolution features
+
             features, pos = features[: -self.scalp], pos[: -self.scalp]
 
         src = features[-1]
@@ -546,12 +546,12 @@ class FpnNeck(nn.Module):
         assert fuse_type in {"sum", "avg"}
         self.fuse_type = fuse_type
 
-        # Levels to have top-down features in its outputs
-        # e.g. if fpn_top_down_levels is [2, 3], then only outputs of level 2 and 3
-        # have top-down propagation, while outputs of level 0 and level 1 have only
-        # lateral features from the same backbone level
+
+
+
+
         if fpn_top_down_levels is None:
-            # Default is to have top-down features on all levels
+
             fpn_top_down_levels = range(len(self.convs))
         self.fpn_top_down_levels = list(fpn_top_down_levels)
 
@@ -579,10 +579,10 @@ class FpnNeck(nn.Module):
         out = [None] * len(self.convs)
         pos = [None] * len(self.convs)
         assert len(xs) == len(self.convs)
-        # FPN forward pass
-        # see https://github.com/facebookresearch/detectron2/blob/main/detectron2/modeling/backbone/fpn.py
+
+
         prev_features = None
-        # Forward in top-down order (from low to high resolution)
+
         n = len(self.convs) - 1
         for i in range(n, -1, -1):
             x = xs[i]
@@ -642,29 +642,29 @@ class Hiera(nn.Module):
 
     def __init__(
         self,
-        embed_dim: int = 96,  # initial embed dim
-        num_heads: int = 1,  # initial number of heads
-        drop_path_rate: float = 0.0,  # stochastic depth
-        q_pool: int = 3,  # number of q_pool stages
-        q_stride: tuple[int, int] = (2, 2),  # downsample stride bet. stages
-        stages: tuple[int, ...] = (2, 3, 16, 3),  # blocks per stage
-        dim_mul: float = 2.0,  # dim_mul factor at stage shift
-        head_mul: float = 2.0,  # head_mul factor at stage shift
+        embed_dim: int = 96,
+        num_heads: int = 1,
+        drop_path_rate: float = 0.0,
+        q_pool: int = 3,
+        q_stride: tuple[int, int] = (2, 2),
+        stages: tuple[int, ...] = (2, 3, 16, 3),
+        dim_mul: float = 2.0,
+        head_mul: float = 2.0,
         window_pos_embed_bkg_spatial_size: tuple[int, int] = (14, 14),
-        # window size per stage, when not using global att.
+
         window_spec: tuple[int, ...] = (
             8,
             4,
             14,
             7,
         ),
-        # global attn in these blocks
+
         global_att_blocks: tuple[int, ...] = (
             12,
             16,
             20,
         ),
-        return_interm_layers=True,  # return feats from every stage
+        return_interm_layers=True,
     ):
         """Initialize a Hiera model, a hierarchical vision transformer for efficient multiscale feature extraction.
 
@@ -705,23 +705,23 @@ class Hiera(nn.Module):
             stride=(4, 4),
             padding=(3, 3),
         )
-        # Which blocks have global attention?
+
         self.global_att_blocks = global_att_blocks
 
-        # Windowed positional embedding (https://arxiv.org/abs/2311.05613)
+
         self.window_pos_embed_bkg_spatial_size = window_pos_embed_bkg_spatial_size
         self.pos_embed = nn.Parameter(torch.zeros(1, embed_dim, *self.window_pos_embed_bkg_spatial_size))
         self.pos_embed_window = nn.Parameter(torch.zeros(1, embed_dim, self.window_spec[0], self.window_spec[0]))
 
-        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]  # stochastic depth decay rule
+        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]
 
         cur_stage = 1
         self.blocks = nn.ModuleList()
 
         for i in range(depth):
             dim_out = embed_dim
-            # Lags by a block, so first block of next stage uses an initial window size
-            # of previous stage and final window size of current stage
+
+
             window_size = self.window_spec[cur_stage - 1]
 
             if self.global_att_blocks is not None:
@@ -779,9 +779,9 @@ class Hiera(nn.Module):
             ...     print(feat.shape)
         """
         x = self.patch_embed(x)
-        # x: (B, H, W, C)
 
-        # Add positional embedding
+
+
         x = x + self._get_pos_embed(x.shape[1:3])
 
         outputs = []

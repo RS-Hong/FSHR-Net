@@ -55,7 +55,7 @@ class TransformerEncoderLayer(nn.Module):
         self.self_attn = self_attention or nn.MultiheadAttention(num_heads=8, dropout=0.1, embed_dim=256)
         self.cross_attn_image = cross_attention or nn.MultiheadAttention(num_heads=8, dropout=0.1, embed_dim=256)
 
-        # Implementation of Feedforward model
+
         self.linear1 = nn.Linear(d_model, dim_feedforward)
         self.dropout = nn.Dropout(dropout)
         self.linear2 = nn.Linear(dim_feedforward, d_model)
@@ -108,14 +108,14 @@ class TransformerEncoderLayer(nn.Module):
         """
         q = k = tgt + query_pos if self.pos_enc_at_attn else tgt
 
-        # Self attention
+
         tgt2 = self.self_attn(
             q, k, value=tgt, attn_mask=tgt_mask, key_padding_mask=tgt_key_padding_mask, need_weights=False
         )[0]
         tgt = tgt + self.dropout1(tgt2)
         tgt = self.norm1(tgt)
 
-        # Cross attention to image
+
         tgt2 = self.cross_attn_image(
             query=tgt + query_pos if self.pos_enc_at_cross_attn_queries else tgt,
             key=memory + pos if self.pos_enc_at_cross_attn_keys else memory,
@@ -127,7 +127,7 @@ class TransformerEncoderLayer(nn.Module):
         tgt = tgt + self.dropout2(tgt2)
         tgt = self.norm2(tgt)
 
-        # FFN
+
         tgt2 = self.linear2(self.dropout(self.activation(self.linear1(tgt))))
         tgt = tgt + self.dropout3(tgt2)
         tgt = self.norm3(tgt)
@@ -164,7 +164,7 @@ class TransformerEncoderLayer(nn.Module):
             Processed tensor
         """
         if dac:
-            # we only apply self attention to the first half of the queries
+
             assert tgt.shape[0] % 2 == 0
             other_tgt = tgt[tgt.shape[0] // 2 :]
             tgt = tgt[: tgt.shape[0] // 2]
@@ -173,7 +173,7 @@ class TransformerEncoderLayer(nn.Module):
         tgt2 = self.self_attn(q, k, value=tgt2, attn_mask=tgt_mask, key_padding_mask=tgt_key_padding_mask)[0]
         tgt = tgt + self.dropout1(tgt2)
         if dac:
-            # Recombine
+
             tgt = torch.cat((tgt, other_tgt), dim=0)
         tgt2 = self.norm2(tgt)
         memory = memory.to(tgt2.dtype).contiguous()
@@ -229,8 +229,8 @@ class TransformerEncoderLayer(nn.Module):
             memory_key_padding_mask=memory_key_padding_mask,
             pos=pos,
             query_pos=query_pos,
-            # attn_bias=attn_bias,
-            # **kwds,
+
+
         )
 
 
@@ -275,9 +275,9 @@ class TransformerEncoder(nn.Module):
 
         self.use_act_checkpoint = use_act_checkpoint
 
-        # assign layer index to each layer so that some layers can decide what to do
-        # based on which layer index they are (e.g. cross attention to memory bank only
-        # in selected layers)
+
+
+
         for layer_idx, layer in enumerate(self.layers):
             layer.layer_idx = layer_idx
 
@@ -295,10 +295,10 @@ class TransformerEncoder(nn.Module):
             spatial_shape = (h, w)
             spatial_shapes.append(spatial_shape)
 
-            src = src.flatten(2).transpose(1, 2)  # bs, hw, c
+            src = src.flatten(2).transpose(1, 2)
             if has_mask:
                 mask = mask.flatten(1)
-            pos_embed = pos_embed.flatten(2).transpose(1, 2)  # bs, hw, c
+            pos_embed = pos_embed.flatten(2).transpose(1, 2)
             if self.level_embed is not None:
                 lvl_pos_embed = pos_embed + self.level_embed[lvl].view(1, 1, -1)
             else:
@@ -307,9 +307,9 @@ class TransformerEncoder(nn.Module):
             src_flatten.append(src)
             if has_mask:
                 mask_flatten.append(mask)
-        src_flatten = torch.cat(src_flatten, 1)  # bs, \sum{hxw}, c
-        mask_flatten = torch.cat(mask_flatten, 1) if has_mask else None  # bs, \sum{hxw}
-        lvl_pos_embed_flatten = torch.cat(lvl_pos_embed_flatten, 1)  # bs, \sum{hxw}, c
+        src_flatten = torch.cat(src_flatten, 1)
+        mask_flatten = torch.cat(mask_flatten, 1) if has_mask else None
+        lvl_pos_embed_flatten = torch.cat(lvl_pos_embed_flatten, 1)
         spatial_shapes = torch.tensor(spatial_shapes, dtype=torch.long, device=src_flatten.device)
         level_start_index = torch.cat(
             (
@@ -370,7 +370,7 @@ class TransformerEncoder(nn.Module):
             assert len(src_key_padding_masks) == self.num_feature_levels
         if pos is not None:
             assert len(pos) == self.num_feature_levels
-        # Flatten multilevel feats and add level pos embeds
+
         (
             src_flatten,
             key_padding_masks_flatten,
@@ -396,7 +396,7 @@ class TransformerEncoder(nn.Module):
             if encoder_extra_kwargs is not None:
                 layer_kwargs.update(encoder_extra_kwargs)
             output = layer(**layer_kwargs)
-        # return as seq first
+
         return (
             output.transpose(0, 1),
             (key_padding_masks_flatten.transpose(0, 1) if key_padding_masks_flatten is not None else None),
@@ -461,8 +461,8 @@ class TransformerEncoderFusion(TransformerEncoder):
         encoder_extra_kwargs: dict | None = None,
     ):
         """Forward pass for the transformer encoder with text-image fusion."""
-        # Restore spatial shapes of vision
-        bs = src[0].shape[1]  # seq first
+
+        bs = src[0].shape[1]
         if feat_sizes is not None:
             assert len(feat_sizes) == len(src)
             if src_key_padding_mask is None:
@@ -479,9 +479,9 @@ class TransformerEncoderFusion(TransformerEncoder):
             assert all(x.dim == 4 for x in src), "expected list of (bs, c, h, w) tensors"
 
         if self.add_pooled_text_to_img_feat:
-            # Fusion: Add mean pooled text to image features
+
             pooled_text = pool_text_feat(prompt, prompt_key_padding_mask, self.pool_text_with_mask)
-            pooled_text = self.text_pooling_proj(pooled_text)[..., None, None]  # prompt is seq first
+            pooled_text = self.text_pooling_proj(pooled_text)[..., None, None]
             src = [x.add_(pooled_text) for x in src]
 
         (
@@ -513,17 +513,17 @@ class TransformerEncoderFusion(TransformerEncoder):
 
 def pool_text_feat(prompt, prompt_mask, pool_with_mask):
     """Mean-pool the prompt embeddings over the valid tokens only."""
-    # prompt has shape (seq, bs, dim)
+
     if not pool_with_mask:
         return prompt.mean(dim=0)
 
-    # prompt_mask has shape (bs, seq), where False is valid and True is padding
+
     assert prompt_mask.dim() == 2
-    # is_valid has shape (seq, bs, 1), where 1 is valid and 0 is padding
+
     is_valid = (~prompt_mask).float().permute(1, 0)[..., None]
-    # num_valid has shape (bs, 1)
+
     num_valid = torch.clamp(torch.sum(is_valid, dim=0), min=1.0)
 
-    # mean pool over all the valid tokens
+
     pooled_text = (prompt * is_valid).sum(dim=0) / num_valid
     return pooled_text

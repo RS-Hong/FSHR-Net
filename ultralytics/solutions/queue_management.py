@@ -40,9 +40,9 @@ class QueueManager(BaseSolution):
         """Initialize the QueueManager with parameters for tracking and counting objects in a video stream."""
         super().__init__(**kwargs)
         self.initialize_region()
-        self.counts = 0  # Queue counts information
-        self.rect_color = (255, 255, 255)  # Rectangle color for visualization
-        self.region_length = len(self.region)  # Store region length for further usage
+        self.counts = 0
+        self.rect_color = (255, 255, 255)
+        self.region_length = len(self.region)
 
     def process(self, im0) -> SolutionResults:
         """Process queue management for a single frame of video.
@@ -59,27 +59,27 @@ class QueueManager(BaseSolution):
             >>> frame = cv2.imread("frame.jpg")
             >>> results = queue_manager.process(frame)
         """
-        self.counts = 0  # Reset counts every frame
-        self.extract_tracks(im0)  # Extract tracks from the current frame
-        annotator = SolutionAnnotator(im0, line_width=self.line_width)  # Initialize annotator
-        annotator.draw_region(reg_pts=self.region, color=self.rect_color, thickness=self.line_width * 2)  # Draw region
+        self.counts = 0
+        self.extract_tracks(im0)
+        annotator = SolutionAnnotator(im0, line_width=self.line_width)
+        annotator.draw_region(reg_pts=self.region, color=self.rect_color, thickness=self.line_width * 2)
 
         for box, track_id, cls, conf in zip(self.boxes, self.track_ids, self.clss, self.confs):
-            # Draw bounding box and counting region
-            annotator.box_label(box, label=self.adjust_box_label(cls, conf, track_id), color=colors(track_id, True))
-            self.store_tracking_history(track_id, box)  # Store track history
 
-            # Cache frequently accessed attributes
+            annotator.box_label(box, label=self.adjust_box_label(cls, conf, track_id), color=colors(track_id, True))
+            self.store_tracking_history(track_id, box)
+
+
             track_history = self.track_history.get(track_id, [])
 
-            # Store previous position of track and check if the object is inside the counting region
+
             prev_position = None
             if len(track_history) > 1:
                 prev_position = track_history[-2]
             if self.region_length >= 3 and prev_position and self.r_s.contains(self.Point(self.track_line[-1])):
                 self.counts += 1
 
-        # Display queue counts
+
         annotator.queue_counts_display(
             f"Queue Counts : {self.counts}",
             points=self.region,
@@ -87,7 +87,7 @@ class QueueManager(BaseSolution):
             txt_color=(104, 31, 17),
         )
         plot_im = annotator.result()
-        self.display_output(plot_im)  # Display output with base class function
+        self.display_output(plot_im)
 
-        # Return a SolutionResults object with processed data
+
         return SolutionResults(plot_im=plot_im, queue_count=self.counts, total_tracks=len(self.track_ids))

@@ -17,7 +17,7 @@ from ultralytics.utils.patches import onnx_export_patch
 from ultralytics.utils.tal import make_anchors
 from ultralytics.utils.torch_utils import copy_attr
 
-# Configuration for Model Compression Toolkit (MCT) quantization
+
 MCT_CONFIG = {
     "YOLO11": {
         "detect": {
@@ -78,7 +78,7 @@ class FXModel(torch.nn.Module):
         """
         super().__init__()
         copy_attr(self, model)
-        # Explicitly set `model` since `copy_attr` somehow does not copy it.
+
         self.model = model.model
         self.imgsz = imgsz
 
@@ -94,13 +94,13 @@ class FXModel(torch.nn.Module):
         Returns:
             (torch.Tensor): The output tensor from the model.
         """
-        y = []  # outputs
+        y = []
         for m in self.model:
-            if m.f != -1:  # if not from previous layer
-                # from earlier layers
+            if m.f != -1:
+
                 x = y[m.f] if isinstance(m.f, int) else [x if j == -1 else y[j] for j in m.f]
             if isinstance(m, Detect):
-                m._inference = types.MethodType(_inference, m)  # bind method to Detect
+                m._inference = types.MethodType(_inference, m)
                 m.anchors, m.strides = (
                     x.transpose(0, 1)
                     for x in make_anchors(
@@ -108,11 +108,11 @@ class FXModel(torch.nn.Module):
                     )
                 )
             if type(m) is Pose:
-                m.forward = types.MethodType(pose_forward, m)  # bind method to Detect
+                m.forward = types.MethodType(pose_forward, m)
             if type(m) is Segment:
-                m.forward = types.MethodType(segment_forward, m)  # bind method to Detect
-            x = m(x)  # run
-            y.append(x)  # save output
+                m.forward = types.MethodType(segment_forward, m)
+            x = m(x)
+            y.append(x)
         return x
 
 
@@ -124,15 +124,15 @@ def _inference(self, x: dict[str, torch.Tensor]) -> tuple[torch.Tensor]:
 
 def pose_forward(self, x: list[torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Forward pass for imx pose estimation, including keypoint decoding."""
-    bs = x[0].shape[0]  # batch size
+    bs = x[0].shape[0]
     nk_out = getattr(self, "nk_output", self.nk)
     kpt = torch.cat([self.cv4[i](x[i]).view(bs, nk_out, -1) for i in range(self.nl)], -1)
 
-    # If using Pose26 with 5 dims, convert to 3 dims for export
+
     if hasattr(self, "nk_output") and self.nk_output != self.nk:
         spatial = kpt.shape[-1]
         kpt = kpt.view(bs, self.kpt_shape[0], self.kpt_shape[1] + 2, spatial)
-        kpt = kpt[:, :, :-2, :]  # Remove sigma_x, sigma_y
+        kpt = kpt[:, :, :-2, :]
         kpt = kpt.view(bs, self.nk, spatial)
     x = Detect.forward(self, x)
     pred_kpt = self.kpts_decode(kpt)
@@ -141,9 +141,9 @@ def pose_forward(self, x: list[torch.Tensor]) -> tuple[torch.Tensor, torch.Tenso
 
 def segment_forward(self, x: list[torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     """Forward pass for imx segmentation."""
-    p = self.proto(x[0])  # mask protos
-    bs = p.shape[0]  # batch size
-    mc = torch.cat([self.cv4[i](x[i]).view(bs, self.nm, -1) for i in range(self.nl)], 2)  # mask coefficients
+    p = self.proto(x[0])
+    bs = p.shape[0]
+    mc = torch.cat([self.cv4[i](x[i]).view(bs, self.nm, -1) for i in range(self.nl)], 2)
     x = Detect.forward(self, x)
     return *x, mc.transpose(1, 2), p
 
@@ -179,7 +179,7 @@ class NMSWrapper(torch.nn.Module):
         """Forward pass with model inference and NMS post-processing."""
         from edgemdt_cl.pytorch.nms.nms_with_indices import multiclass_nms_with_indices
 
-        # model inference
+
         outputs = self.model(images)
         boxes, scores = outputs[0], outputs[1]
         nms_outputs = multiclass_nms_with_indices(
@@ -190,7 +190,7 @@ class NMSWrapper(torch.nn.Module):
             max_detections=self.max_detections,
         )
         if self.task == "pose":
-            kpts = outputs[2]  # (bs, max_detections, kpts 17*3)
+            kpts = outputs[2]
             out_kpts = torch.gather(kpts, 1, nms_outputs.indices.unsqueeze(-1).expand(-1, -1, kpts.size(-1)))
             return nms_outputs.boxes, nms_outputs.scores, nms_outputs.labels, out_kpts
         if self.task == "segment":
@@ -256,13 +256,13 @@ def torch2imx(
             img = img / 255.0
             yield [img]
 
-    # NOTE: need tpc_version to be "4.0" for IMX500 Pose estimation models
+
     tpc = get_target_platform_capabilities(tpc_version="4.0", device_type="imx500")
 
     bit_cfg = mct.core.BitWidthConfig()
     mct_config = MCT_CONFIG["YOLO11" if "C2PSA" in model.__str__() else "YOLOv8"][model.task]
 
-    # Check if the model has the expected number of layers
+
     if len(list(model.modules())) not in mct_config["n_layers"]:
         raise ValueError("IMX export only supported for YOLOv8n and YOLO11n models.")
 
@@ -278,7 +278,7 @@ def torch2imx(
     resource_utilization = mct.core.ResourceUtilization(weights_memory=mct_config["weights_memory"])
 
     quant_model = (
-        mct.gptq.pytorch_gradient_post_training_quantization(  # Perform Gradient-Based Post Training Quantization
+        mct.gptq.pytorch_gradient_post_training_quantization(
             model=model,
             representative_data_gen=representative_dataset_gen,
             target_resource_utilization=resource_utilization,
@@ -289,7 +289,7 @@ def torch2imx(
             target_platform_capabilities=tpc,
         )[0]
         if gptq
-        else mct.ptq.pytorch_post_training_quantization(  # Perform post training quantization
+        else mct.ptq.pytorch_post_training_quantization(
             in_module=model,
             representative_data_gen=representative_dataset_gen,
             target_resource_utilization=resource_utilization,
@@ -309,25 +309,25 @@ def torch2imx(
 
     f = Path(str(file).replace(file.suffix, "_imx_model"))
     f.mkdir(exist_ok=True)
-    onnx_model = f / Path(str(file.name).replace(file.suffix, "_imx.onnx"))  # js dir
+    onnx_model = f / Path(str(file.name).replace(file.suffix, "_imx.onnx"))
 
     with onnx_export_patch():
         mct.exporter.pytorch_export_model(
             model=quant_model, save_model_path=onnx_model, repr_dataset=representative_dataset_gen
         )
 
-    model_onnx = onnx.load(onnx_model)  # load onnx model
+    model_onnx = onnx.load(onnx_model)
     for k, v in metadata.items():
         meta = model_onnx.metadata_props.add()
         meta.key, meta.value = k, str(v)
 
     onnx.save(model_onnx, onnx_model)
 
-    # Find imxconv-pt binary - check venv bin directory first, then PATH
+
     bin_dir = Path(sys.executable).parent
     imxconv = bin_dir / ("imxconv-pt.exe" if WINDOWS else "imxconv-pt")
     if not imxconv.exists():
-        imxconv = which("imxconv-pt")  # fallback to PATH
+        imxconv = which("imxconv-pt")
     if not imxconv:
         raise FileNotFoundError("imxconv-pt not found. Install with: pip install imx500-converter[pt]")
 
@@ -336,7 +336,7 @@ def torch2imx(
         check=True,
     )
 
-    # Needed for imx models.
+
     with open(f / "labels.txt", "w", encoding="utf-8") as file:
         file.writelines([f"{name}\n" for _, name in model.names.items()])
 

@@ -181,11 +181,11 @@ class BOTSORT(BYTETracker):
         super().__init__(args, frame_rate)
         self.gmc = GMC(method=args.gmc_method)
 
-        # ReID module
+
         self.proximity_thresh = args.proximity_thresh
         self.appearance_thresh = args.appearance_thresh
         self.encoder = (
-            (lambda feats, s: [f.cpu().numpy() for f in feats])  # native features do not require any model
+            (lambda feats, s: [f.cpu().numpy() for f in feats])
             if args.with_reid and self.args.model == "auto"
             else ReID(args.model)
             if args.with_reid
@@ -245,7 +245,7 @@ class ReID:
         from ultralytics import YOLO
 
         self.model = YOLO(model)
-        self.model(embed=[len(self.model.model.model) - 2 if ".pt" in model else -1], verbose=False, save=False)  # init
+        self.model(embed=[len(self.model.model.model) - 2 if ".pt" in model else -1], verbose=False, save=False)
 
     def __call__(self, img: np.ndarray, dets: np.ndarray) -> list[np.ndarray]:
         """Extract embeddings for detected objects."""
@@ -253,5 +253,5 @@ class ReID:
             [save_one_box(det, img, save=False) for det in xywh2xyxy(torch.from_numpy(dets[:, :4]))]
         )
         if len(feats) != dets.shape[0] and feats[0].shape[0] == dets.shape[0]:
-            feats = feats[0]  # batched prediction with non-PyTorch backend
+            feats = feats[0]
         return [f.cpu().numpy() for f in feats]

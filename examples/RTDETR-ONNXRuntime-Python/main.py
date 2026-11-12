@@ -19,11 +19,11 @@ def download_file(url: str, local_path: str) -> str:
         url (str): URL of the file to download.
         local_path (str): Local path where the file will be saved.
     """
-    # Check if the local path already exists
+
     if os.path.exists(local_path):
         print(f"File already exists at {local_path}. Skipping download.")
         return local_path
-    # Download the file from the URL
+
     print(f"Downloading {url} to {local_path}...")
     response = requests.get(url, stream=True, timeout=30)
     response.raise_for_status()
@@ -94,7 +94,7 @@ class RTDETR:
         self.iou_thres = iou_thres
         self.classes = class_names
 
-        # Set up the ONNX runtime session with available execution providers
+
         available = ort.get_available_providers()
         providers = [p for p in ("CUDAExecutionProvider", "CPUExecutionProvider") if p in available]
         self.session = ort.InferenceSession(model_path, providers=providers or available)
@@ -104,46 +104,46 @@ class RTDETR:
         self.input_height = self.model_input[0].shape[3]
 
         if self.classes is None:
-            # Load class names from the COCO dataset YAML file
+
             self.classes = download_file(
                 "https://raw.githubusercontent.com/ultralytics/ultralytics/main/ultralytics/cfg/datasets/coco8.yaml",
                 "coco8.yaml",
             )
 
-        # Parse the YAML file to get class names
+
         with open(self.classes) as f:
             class_data = yaml.safe_load(f)
             self.classes = list(class_data["names"].values())
 
-        # Ensure the classes are a list
+
         if not isinstance(self.classes, list):
             raise ValueError("Classes should be a list of class names.")
 
-        # Generate a color palette for drawing bounding boxes
+
         self.color_palette: np.ndarray = np.random.uniform(0, 255, size=(len(self.classes), 3))
 
     def draw_detections(self, box: np.ndarray, score: float, class_id: int) -> None:
         """Draw bounding box and label on the input image for a detected object."""
-        # Extract the coordinates of the bounding box
+
         x1, y1, x2, y2 = box
 
-        # Retrieve the color for the class ID
+
         color = self.color_palette[class_id]
 
-        # Draw the bounding box on the image
+
         cv2.rectangle(self.img, (int(x1), int(y1)), (int(x2), int(y2)), color, 2)
 
-        # Create the label text with class name and score
+
         label = f"{self.classes[class_id]}: {score:.2f}"
 
-        # Calculate the dimensions of the label text
+
         (label_width, label_height), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
 
-        # Calculate the position of the label text
+
         label_x = x1
         label_y = y1 - 10 if y1 - 10 > label_height else y1 + 10
 
-        # Draw a filled rectangle as the background for the label text
+
         cv2.rectangle(
             self.img,
             (int(label_x), int(label_y - label_height)),
@@ -152,7 +152,7 @@ class RTDETR:
             cv2.FILLED,
         )
 
-        # Draw the label text on the image
+
         cv2.putText(
             self.img, label, (int(label_x), int(label_y)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1, cv2.LINE_AA
         )
@@ -166,27 +166,27 @@ class RTDETR:
         Returns:
             (np.ndarray): Preprocessed image data with shape (1, 3, H, W) ready for inference.
         """
-        # Read the input image using OpenCV
+
         self.img = cv2.imread(self.img_path)
         if self.img is None:
             raise FileNotFoundError(f"Image not found or unreadable: '{self.img_path}'")
 
-        # Get the height and width of the input image
+
         self.img_height, self.img_width = self.img.shape[:2]
 
-        # Convert the image color space from BGR to RGB
+
         img = cv2.cvtColor(self.img, cv2.COLOR_BGR2RGB)
 
-        # Resize the image to match the input shape
+
         img = cv2.resize(img, (self.input_width, self.input_height))
 
-        # Normalize the image data by dividing it by 255.0
+
         image_data = np.array(img) / 255.0
 
-        # Transpose the image to have the channel dimension as the first dimension
-        image_data = np.transpose(image_data, (2, 0, 1))  # Channel first
 
-        # Expand the dimensions of the image data to match the expected input shape
+        image_data = np.transpose(image_data, (2, 0, 1))
+
+
         image_data = image_data[None].astype(np.float32)
 
         return image_data
@@ -201,17 +201,17 @@ class RTDETR:
         Returns:
             (np.ndarray): Array of shape (N, 4) with bounding boxes in (x_min, y_min, x_max, y_max) format.
         """
-        # Calculate half width and half height of the bounding boxes
+
         half_width = boxes[:, 2] / 2
         half_height = boxes[:, 3] / 2
 
-        # Calculate the coordinates of the bounding boxes
+
         x_min = boxes[:, 0] - half_width
         y_min = boxes[:, 1] - half_height
         x_max = boxes[:, 0] + half_width
         y_max = boxes[:, 1] + half_height
 
-        # Return the bounding boxes in (x_min, y_min, x_max, y_max) format
+
         return np.column_stack((x_min, y_min, x_max, y_max))
 
     def postprocess(self, model_output: list[np.ndarray]) -> np.ndarray:
@@ -226,34 +226,34 @@ class RTDETR:
         Returns:
             (np.ndarray): Annotated image with detection bounding boxes and labels.
         """
-        # Squeeze the model output to remove unnecessary dimensions
+
         outputs = np.squeeze(model_output[0])
 
-        # Extract bounding boxes and scores from the model output
+
         boxes = outputs[:, :4]
         scores = outputs[:, 4:]
 
-        # Get the class labels and scores for each detection
+
         labels = np.argmax(scores, axis=1)
         scores = np.max(scores, axis=1)
 
-        # Apply confidence threshold to filter out low-confidence detections
+
         mask = scores > self.conf_thres
         boxes, scores, labels = boxes[mask], scores[mask], labels[mask]
 
-        # Convert bounding boxes to (x_min, y_min, x_max, y_max) format
+
         boxes = self.bbox_cxcywh_to_xyxy(boxes)
 
-        # Scale bounding boxes to match the original image dimensions
+
         boxes[:, 0::2] *= self.img_width
         boxes[:, 1::2] *= self.img_height
 
-        # Apply non-maximum suppression (optional for RT-DETR, but useful for filtering overlaps)
+
         xywh_boxes = [[float(b[0]), float(b[1]), float(b[2] - b[0]), float(b[3] - b[1])] for b in boxes]
         indices = cv2.dnn.NMSBoxes(xywh_boxes, scores.tolist(), self.conf_thres, self.iou_thres)
         indices = indices.flatten().tolist() if len(indices) else []
 
-        # Draw detections on the image
+
         for i in indices:
             self.draw_detections(boxes[i], float(scores[i]), int(labels[i]))
 
@@ -267,18 +267,18 @@ class RTDETR:
         Returns:
             (np.ndarray): Output image with detection annotations including bounding boxes and class labels.
         """
-        # Preprocess the image for model input
+
         image_data = self.preprocess()
 
-        # Run the model inference
+
         model_output = self.session.run(None, {self.model_input[0].name: image_data})
 
-        # Process and return the model output
+
         return self.postprocess(model_output)
 
 
 if __name__ == "__main__":
-    # Set up argument parser for command-line arguments
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", type=str, default="rtdetr-l.onnx", help="Path to the ONNX model file.")
     parser.add_argument("--img", type=str, default="bus.jpg", help="Path to the input image.")
@@ -286,13 +286,13 @@ if __name__ == "__main__":
     parser.add_argument("--iou-thres", type=float, default=0.5, help="IoU threshold for non-maximum suppression.")
     args = parser.parse_args()
 
-    # Create the detector instance with specified parameters
+
     detection = RTDETR(args.model, args.img, args.conf_thres, args.iou_thres)
 
-    # Perform detection and get the output image
+
     output_image = detection.main()
 
-    # Display the annotated output image
+
     cv2.namedWindow("Output", cv2.WINDOW_NORMAL)
     cv2.imshow("Output", output_image)
     cv2.waitKey(0)

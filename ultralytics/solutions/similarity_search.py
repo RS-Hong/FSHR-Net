@@ -14,7 +14,7 @@ from ultralytics.utils import LOGGER, TORCH_VERSION
 from ultralytics.utils.checks import check_requirements
 from ultralytics.utils.torch_utils import TORCH_2_4, select_device
 
-os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"  # Avoid OpenMP conflict on some systems
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 
 class VisualAISearch:
@@ -90,40 +90,40 @@ class VisualAISearch:
         index by extracting features from all images in the data directory, normalizes the features, and saves both the
         index and image paths for future use.
         """
-        # Check if the FAISS index and corresponding image paths already exist
+
         if Path(self.faiss_index).exists() and Path(self.data_path_npy).exists():
             LOGGER.info("Loading existing FAISS index...")
-            self.index = self.faiss.read_index(self.faiss_index)  # Load the FAISS index from disk
-            self.image_paths = np.load(self.data_path_npy)  # Load the saved image path list
-            return  # Exit the function as the index is successfully loaded
+            self.index = self.faiss.read_index(self.faiss_index)
+            self.image_paths = np.load(self.data_path_npy)
+            return
 
-        # If the index doesn't exist, start building it from scratch
+
         LOGGER.info("Building FAISS index from images...")
-        vectors = []  # List to store feature vectors of images
+        vectors = []
 
-        # Iterate over all image files in the data directory
+
         for file in self.data_dir.iterdir():
-            # Skip files that are not valid image formats
+
             if file.suffix.lower().lstrip(".") not in IMG_FORMATS:
                 continue
             try:
-                # Extract feature vector for the image and add to the list
+
                 vectors.append(self.extract_image_feature(file))
-                self.image_paths.append(file.name)  # Store the corresponding image name
+                self.image_paths.append(file.name)
             except Exception as e:
                 LOGGER.warning(f"Skipping {file.name}: {e}")
 
-        # If no vectors were successfully created, raise an error
+
         if not vectors:
             raise RuntimeError("No image embeddings could be generated.")
 
-        vectors = np.vstack(vectors).astype("float32")  # Stack all vectors into a NumPy array and convert to float32
-        self.faiss.normalize_L2(vectors)  # Normalize vectors to unit length for cosine similarity
+        vectors = np.vstack(vectors).astype("float32")
+        self.faiss.normalize_L2(vectors)
 
-        self.index = self.faiss.IndexFlatIP(vectors.shape[1])  # Create a new FAISS index using inner product
-        self.index.add(vectors)  # Add the normalized vectors to the FAISS index
-        self.faiss.write_index(self.index, self.faiss_index)  # Save the newly built FAISS index to disk
-        np.save(self.data_path_npy, np.array(self.image_paths))  # Save the list of image paths to disk
+        self.index = self.faiss.IndexFlatIP(vectors.shape[1])
+        self.index.add(vectors)
+        self.faiss.write_index(self.index, self.faiss_index)
+        np.save(self.data_path_npy, np.array(self.image_paths))
 
         LOGGER.info(f"Indexed {len(self.image_paths)} images.")
 
@@ -201,8 +201,8 @@ class SearchApp:
         self.app = Flask(
             __name__,
             template_folder="templates",
-            static_folder=Path(data).resolve(),  # Absolute path to serve images
-            static_url_path="/images",  # URL prefix for images
+            static_folder=Path(data).resolve(),
+            static_url_path="/images",
         )
         self.app.add_url_rule("/", view_func=self.index, methods=["GET", "POST"])
 

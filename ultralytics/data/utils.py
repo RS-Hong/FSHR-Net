@@ -38,13 +38,13 @@ from ultralytics.utils.ops import segments2boxes
 
 HELP_URL = "See https://docs.ultralytics.com/datasets for dataset formatting guidance."
 IMG_FORMATS = {"avif", "bmp", "dng", "heic", "jp2", "jpeg", "jpeg2000", "jpg", "mpo", "png", "tif", "tiff", "webp"}
-VID_FORMATS = {"asf", "avi", "gif", "m4v", "mkv", "mov", "mp4", "mpeg", "mpg", "ts", "wmv", "webm"}  # videos
+VID_FORMATS = {"asf", "avi", "gif", "m4v", "mkv", "mov", "mp4", "mpeg", "mpg", "ts", "wmv", "webm"}
 FORMATS_HELP_MSG = f"Supported formats are:\nimages: {IMG_FORMATS}\nvideos: {VID_FORMATS}"
 
 
 def img2label_paths(img_paths: list[str]) -> list[str]:
     """Convert image paths to label paths by replacing 'images' with 'labels' and extension with '.txt'."""
-    sa, sb = f"{os.sep}images{os.sep}", f"{os.sep}labels{os.sep}"  # /images/, /labels/ substrings
+    sa, sb = f"{os.sep}images{os.sep}", f"{os.sep}labels{os.sep}"
     return [sb.join(x.rsplit(sa, 1)).rsplit(".", 1)[0] + ".txt" for x in img_paths]
 
 
@@ -72,29 +72,29 @@ def check_file_speeds(
         LOGGER.warning(f"{prefix}Image speed checks: No files to check")
         return
 
-    # Sample files (max 5)
+
     files = random.sample(files, min(max_files, len(files)))
 
-    # Test ping (stat time)
+
     ping_times = []
     file_sizes = []
     read_speeds = []
 
     for f in files:
         try:
-            # Measure ping (stat call)
+
             start = time.perf_counter()
             file_size = os.stat(f).st_size
-            ping_times.append((time.perf_counter() - start) * 1000)  # ms
+            ping_times.append((time.perf_counter() - start) * 1000)
             file_sizes.append(file_size)
 
-            # Measure read speed
+
             start = time.perf_counter()
             with open(f, "rb") as file_obj:
                 _ = file_obj.read()
             read_time = time.perf_counter() - start
-            if read_time > 0:  # Avoid division by zero
-                read_speeds.append(file_size / (1 << 20) / read_time)  # MB/s
+            if read_time > 0:
+                read_speeds.append(file_size / (1 << 20) / read_time)
         except Exception:
             pass
 
@@ -102,7 +102,7 @@ def check_file_speeds(
         LOGGER.warning(f"{prefix}Image speed checks: failed to access files")
         return
 
-    # Calculate stats with uncertainties
+
     avg_ping = np.mean(ping_times)
     std_ping = np.std(ping_times, ddof=1) if len(ping_times) > 1 else 0
     size_msg = f", size: {np.mean(file_sizes) / (1 << 10):.1f} KB"
@@ -133,19 +133,19 @@ def get_hash(paths: list[str]) -> str:
             size += os.stat(p).st_size
         except OSError:
             continue
-    h = __import__("hashlib").sha256(str(size).encode())  # hash sizes
-    h.update("".join(paths).encode())  # hash paths
-    return h.hexdigest()  # return hash
+    h = __import__("hashlib").sha256(str(size).encode())
+    h.update("".join(paths).encode())
+    return h.hexdigest()
 
 
 def exif_size(img: Image.Image) -> tuple[int, int]:
     """Return exif-corrected PIL size."""
-    s = img.size  # (width, height)
-    if img.format == "JPEG":  # only support JPEG images
+    s = img.size
+    if img.format == "JPEG":
         try:
             if exif := img.getexif():
-                rotation = exif.get(274, None)  # the EXIF key for the orientation tag is 274
-                if rotation in {6, 8}:  # rotation 270 or 90
+                rotation = exif.get(274, None)
+                if rotation in {6, 8}:
                     s = s[1], s[0]
         except Exception:
             pass
@@ -155,19 +155,19 @@ def exif_size(img: Image.Image) -> tuple[int, int]:
 def verify_image(args: tuple) -> tuple:
     """Verify one image."""
     (im_file, cls), prefix = args
-    # Number (found, corrupt), message
+
     nf, nc, msg = 0, 0, ""
     try:
         im = Image.open(im_file)
-        im.verify()  # PIL verify
-        shape = exif_size(im)  # image size
-        shape = (shape[1], shape[0])  # hw
+        im.verify()
+        shape = exif_size(im)
+        shape = (shape[1], shape[0])
         assert (shape[0] > 9) & (shape[1] > 9), f"image size {shape} <10 pixels"
         assert im.format.lower() in IMG_FORMATS, f"Invalid image format {im.format}. {FORMATS_HELP_MSG}"
         if im.format.lower() in {"jpg", "jpeg"}:
             with open(im_file, "rb") as f:
                 f.seek(-2, 2)
-                if f.read() != b"\xff\xd9":  # corrupt JPEG
+                if f.read() != b"\xff\xd9":
                     ImageOps.exif_transpose(Image.open(im_file)).save(im_file, "JPEG", subsampling=0, quality=100)
                     msg = f"{prefix}{im_file}: corrupt JPEG restored and saved"
         nf = 1
@@ -180,32 +180,32 @@ def verify_image(args: tuple) -> tuple:
 def verify_image_label(args: tuple) -> list:
     """Verify one image-label pair."""
     im_file, lb_file, prefix, keypoint, num_cls, nkpt, ndim, single_cls = args
-    # Number (missing, found, empty, corrupt), message, segments, keypoints
+
     nm, nf, ne, nc, msg, segments, keypoints = 0, 0, 0, 0, "", [], None
     try:
-        # Verify images
+
         im = Image.open(im_file)
-        im.verify()  # PIL verify
-        shape = exif_size(im)  # image size
-        shape = (shape[1], shape[0])  # hw
+        im.verify()
+        shape = exif_size(im)
+        shape = (shape[1], shape[0])
         assert (shape[0] > 9) & (shape[1] > 9), f"image size {shape} <10 pixels"
         assert im.format.lower() in IMG_FORMATS, f"invalid image format {im.format}. {FORMATS_HELP_MSG}"
         if im.format.lower() in {"jpg", "jpeg"}:
             with open(im_file, "rb") as f:
                 f.seek(-2, 2)
-                if f.read() != b"\xff\xd9":  # corrupt JPEG
+                if f.read() != b"\xff\xd9":
                     ImageOps.exif_transpose(Image.open(im_file)).save(im_file, "JPEG", subsampling=0, quality=100)
                     msg = f"{prefix}{im_file}: corrupt JPEG restored and saved"
 
-        # Verify labels
+
         if os.path.isfile(lb_file):
-            nf = 1  # label found
+            nf = 1
             with open(lb_file, encoding="utf-8") as f:
                 lb = [x.split() for x in f.read().strip().splitlines() if len(x)]
-                if any(len(x) > 6 for x in lb) and (not keypoint):  # is segment
+                if any(len(x) > 6 for x in lb) and (not keypoint):
                     classes = np.array([x[0] for x in lb], dtype=np.float32)
-                    segments = [np.array(x[1:], dtype=np.float32).reshape(-1, 2) for x in lb]  # (cls, xy1...)
-                    lb = np.concatenate((classes.reshape(-1, 1), segments2boxes(segments)), 1)  # (cls, xywh)
+                    segments = [np.array(x[1:], dtype=np.float32).reshape(-1, 2) for x in lb]
+                    lb = np.concatenate((classes.reshape(-1, 1), segments2boxes(segments)), 1)
                 lb = np.array(lb, dtype=np.float32)
             if nl := len(lb):
                 if keypoint:
@@ -214,33 +214,33 @@ def verify_image_label(args: tuple) -> list:
                 else:
                     assert lb.shape[1] == 5, f"labels require 5 columns, {lb.shape[1]} columns detected"
                     points = lb[:, 1:]
-                # Coordinate points check with 1% tolerance
+
                 assert points.max() <= 1.01, f"non-normalized or out of bounds coordinates {points[points > 1.01]}"
                 assert lb.min() >= -0.01, f"negative class labels or coordinate {lb[lb < -0.01]}"
 
-                # All labels
-                max_cls = 0 if single_cls else lb[:, 0].max()  # max label count
+
+                max_cls = 0 if single_cls else lb[:, 0].max()
                 assert max_cls < num_cls, (
                     f"Label class {int(max_cls)} exceeds dataset class count {num_cls}. "
                     f"Possible class labels are 0-{num_cls - 1}"
                 )
                 _, i = np.unique(lb, axis=0, return_index=True)
-                if len(i) < nl:  # duplicate row check
-                    lb = lb[i]  # remove duplicates
+                if len(i) < nl:
+                    lb = lb[i]
                     if segments:
                         segments = [segments[x] for x in i]
                     msg = f"{prefix}{im_file}: {nl - len(i)} duplicate labels removed"
             else:
-                ne = 1  # label empty
+                ne = 1
                 lb = np.zeros((0, (5 + nkpt * ndim) if keypoint else 5), dtype=np.float32)
         else:
-            nm = 1  # label missing
+            nm = 1
             lb = np.zeros((0, (5 + nkpt * ndim) if keypoint else 5), dtype=np.float32)
         if keypoint:
             keypoints = lb[:, 5:].reshape(-1, nkpt, ndim)
             if ndim == 2:
                 kpt_mask = np.where((keypoints[..., 0] < 0) | (keypoints[..., 1] < 0), 0.0, 1.0).astype(np.float32)
-                keypoints = np.concatenate([keypoints, kpt_mask[..., None]], axis=-1)  # (nl, nkpt, 3)
+                keypoints = np.concatenate([keypoints, kpt_mask[..., None]], axis=-1)
         lb = lb[:, :5]
         return im_file, lb, shape, segments, keypoints, nm, nf, ne, nc, msg
     except Exception as e:
@@ -281,12 +281,12 @@ def visualize_image_annotations(image_path: str, txt_path: str, label_map: dict[
             w = width * img_width
             h = height * img_height
             annotations.append((x, y, w, h, int(class_id)))
-    _, ax = plt.subplots(1)  # Plot the image and annotations
+    _, ax = plt.subplots(1)
     for x, y, w, h, label in annotations:
-        color = tuple(c / 255 for c in colors(label, False))  # Get and normalize an RGB color for Matplotlib
-        rect = plt.Rectangle((x, y), w, h, linewidth=2, edgecolor=color, facecolor="none")  # Create a rectangle
+        color = tuple(c / 255 for c in colors(label, False))
+        rect = plt.Rectangle((x, y), w, h, linewidth=2, edgecolor=color, facecolor="none")
         ax.add_patch(rect)
-        luminance = 0.2126 * color[0] + 0.7152 * color[1] + 0.0722 * color[2]  # Formula for luminance
+        luminance = 0.2126 * color[0] + 0.7152 * color[1] + 0.0722 * color[2]
         ax.text(x, y - 5, label_map[label], color="white" if luminance < 0.5 else "black", backgroundcolor=color)
     ax.imshow(img)
     plt.show()
@@ -312,7 +312,7 @@ def polygon2mask(
     polygons = polygons.reshape((polygons.shape[0], -1, 2))
     cv2.fillPoly(mask, polygons, color=color)
     nh, nw = (imgsz[0] // downsample_ratio, imgsz[1] // downsample_ratio)
-    # Note: fillPoly first then resize is trying to keep the same loss calculation method when mask-ratio=1
+
     return cv2.resize(mask, (nw, nh))
 
 
@@ -375,10 +375,10 @@ def find_dataset_yaml(path: Path) -> Path:
     Returns:
         (Path): The path of the found YAML file.
     """
-    files = list(path.glob("*.yaml")) or list(path.rglob("*.yaml"))  # try root level first and then recursive
+    files = list(path.glob("*.yaml")) or list(path.rglob("*.yaml"))
     assert files, f"No YAML file found in '{path.resolve()}'"
     if len(files) > 1:
-        files = [f for f in files if f.stem == path.stem]  # prefer *.yaml files that match
+        files = [f for f in files if f.stem == path.stem]
     assert len(files) == 1, f"Expected 1 YAML file in '{path.resolve()}', but found {len(files)}.\n{files}"
     return files[0]
 
@@ -399,17 +399,17 @@ def check_det_dataset(dataset: str, autodownload: bool = True) -> dict[str, Any]
     """
     file = check_file(dataset)
 
-    # Download (optional)
+
     extract_dir = ""
     if zipfile.is_zipfile(file) or is_tarfile(file):
         new_dir = safe_download(file, dir=DATASETS_DIR, unzip=True, delete=False)
         file = find_dataset_yaml(DATASETS_DIR / new_dir)
         extract_dir, autodownload = file.parent, False
 
-    # Read YAML
-    data = YAML.load(file, append_filename=True)  # dictionary
 
-    # Checks
+    data = YAML.load(file, append_filename=True)
+
+
     for k in "train", "val":
         if k not in data:
             if k != "val" or "validation" not in data:
@@ -417,7 +417,7 @@ def check_det_dataset(dataset: str, autodownload: bool = True) -> dict[str, Any]
                     emojis(f"{dataset} '{k}:' key missing ❌.\n'train' and 'val' are required in all data YAMLs.")
                 )
             LOGGER.warning("renaming data YAML 'validation' key to 'val' to match YOLO format.")
-            data["val"] = data.pop("validation")  # replace 'validation' key with 'val' key
+            data["val"] = data.pop("validation")
     if "names" not in data and "nc" not in data:
         raise SyntaxError(emojis(f"{dataset} key missing ❌.\n either 'names' or 'nc' are required in all data YAMLs."))
     if "names" in data and "nc" in data and len(data["names"]) != data["nc"]:
@@ -428,17 +428,17 @@ def check_det_dataset(dataset: str, autodownload: bool = True) -> dict[str, Any]
         data["nc"] = len(data["names"])
 
     data["names"] = check_class_names(data["names"])
-    data["channels"] = data.get("channels", 3)  # get image channels, default to 3
+    data["channels"] = data.get("channels", 3)
 
-    # Resolve paths
-    path = Path(extract_dir or data.get("path") or Path(data.get("yaml_file", "")).parent)  # dataset root
+
+    path = Path(extract_dir or data.get("path") or Path(data.get("yaml_file", "")).parent)
     if not path.exists() and not path.is_absolute():
-        path = (DATASETS_DIR / path).resolve()  # path relative to DATASETS_DIR
+        path = (DATASETS_DIR / path).resolve()
 
-    # Set paths
-    data["path"] = path  # download scripts
+
+    data["path"] = path
     for k in "train", "val", "test", "minival":
-        if data.get(k):  # prepend path
+        if data.get(k):
             if isinstance(data[k], str):
                 x = (path / data[k]).resolve()
                 if not x.exists() and data[k].startswith("../"):
@@ -447,12 +447,12 @@ def check_det_dataset(dataset: str, autodownload: bool = True) -> dict[str, Any]
             else:
                 data[k] = [str((path / x).resolve()) for x in data[k]]
 
-    # Parse YAML
+
     val, s = (data.get(x) for x in ("val", "download"))
     if val:
-        val = [Path(x).resolve() for x in (val if isinstance(val, list) else [val])]  # val path
+        val = [Path(x).resolve() for x in (val if isinstance(val, list) else [val])]
         if not all(x.exists() for x in val):
-            name = clean_url(dataset)  # dataset name with URL auth stripped
+            name = clean_url(dataset)
             LOGGER.info("")
             m = f"Dataset '{name}' images not found, missing path '{next(x for x in val if not x.exists())}'"
             if s and autodownload:
@@ -461,20 +461,20 @@ def check_det_dataset(dataset: str, autodownload: bool = True) -> dict[str, Any]
                 m += f"\nNote dataset download directory is '{DATASETS_DIR}'. You can update this in '{SETTINGS_FILE}'"
                 raise FileNotFoundError(m)
             t = time.time()
-            r = None  # success
-            if s.startswith("http") and s.endswith(".zip"):  # URL
+            r = None
+            if s.startswith("http") and s.endswith(".zip"):
                 safe_download(url=s, dir=DATASETS_DIR, delete=True)
-            elif s.startswith("bash "):  # bash script
+            elif s.startswith("bash "):
                 LOGGER.info(f"Running {s} ...")
                 subprocess.run(s.split(), check=True)
-            else:  # python script
+            else:
                 exec(s, {"yaml": data})
             dt = f"({round(time.time() - t, 1)}s)"
             s = f"success ✅ {dt}, saved to {colorstr('bold', DATASETS_DIR)}" if r in {0, None} else f"failure {dt} ❌"
             LOGGER.info(f"Dataset download {s}\n")
-    check_font("Arial.ttf" if is_ascii(data["names"]) else "Arial.Unicode.ttf")  # download fonts
+    check_font("Arial.ttf" if is_ascii(data["names"]) else "Arial.Unicode.ttf")
 
-    return data  # dictionary
+    return data
 
 
 def check_cls_dataset(dataset: str | Path, split: str = "") -> dict[str, Any]:
@@ -496,7 +496,7 @@ def check_cls_dataset(dataset: str | Path, split: str = "") -> dict[str, Any]:
             - 'nc' (int): The number of classes in the dataset.
             - 'names' (dict[int, str]): A dictionary of class names in the dataset.
     """
-    # Download (optional if dataset=https://file.zip is passed directly)
+
     if str(dataset).startswith(("http:/", "https:/")):
         dataset = safe_download(dataset, dir=DATASETS_DIR, unzip=True, delete=False)
     elif str(dataset).endswith((".zip", ".tar", ".gz")):
@@ -538,8 +538,8 @@ def check_cls_dataset(dataset: str | Path, split: str = "") -> dict[str, Any]:
         else data_dir / "valid"
         if (data_dir / "valid").exists()
         else None
-    )  # data/test or data/val
-    test_set = data_dir / "test" if (data_dir / "test").exists() else None  # data/val or data/test
+    )
+    test_set = data_dir / "test" if (data_dir / "test").exists() else None
     if split == "val" and not val_set:
         LOGGER.warning("Dataset 'split=val' not found, using 'split=test' instead.")
         val_set = test_set
@@ -547,19 +547,19 @@ def check_cls_dataset(dataset: str | Path, split: str = "") -> dict[str, Any]:
         LOGGER.warning("Dataset 'split=test' not found, using 'split=val' instead.")
         test_set = val_set
 
-    nc = len([x for x in (data_dir / "train").glob("*") if x.is_dir()])  # number of classes
-    names = [x.name for x in (data_dir / "train").iterdir() if x.is_dir()]  # class names list
+    nc = len([x for x in (data_dir / "train").glob("*") if x.is_dir()])
+    names = [x.name for x in (data_dir / "train").iterdir() if x.is_dir()]
     names = dict(enumerate(sorted(names)))
 
-    # Print to console
+
     for k, v in {"train": train_set, "val": val_set, "test": test_set}.items():
         prefix = f"{colorstr(f'{k}:')} {v}..."
         if v is None:
             LOGGER.info(prefix)
         else:
             files = [path for path in v.rglob("*.*") if path.suffix[1:].lower() in IMG_FORMATS]
-            nf = len(files)  # number of files
-            nd = len({file.parent for file in files})  # number of directories
+            nf = len(files)
+            nd = len({file.parent for file in files})
             if nf == 0:
                 if k == "train":
                     raise FileNotFoundError(f"{dataset} '{k}:' no training images found")
@@ -612,42 +612,42 @@ class HUBDatasetStats:
         path = Path(path).resolve()
         LOGGER.info(f"Starting HUB dataset checks for {path}....")
 
-        self.task = task  # detect, segment, pose, classify, obb
+        self.task = task
         if self.task == "classify":
             unzip_dir = unzip_file(path)
             data = check_cls_dataset(unzip_dir)
             data["path"] = unzip_dir
-        else:  # detect, segment, pose, obb
+        else:
             _, data_dir, yaml_path = self._unzip(Path(path))
             try:
-                # Load YAML with checks
+
                 data = YAML.load(yaml_path)
-                data["path"] = ""  # strip path since YAML should be in dataset root for all HUB datasets
+                data["path"] = ""
                 YAML.save(yaml_path, data)
-                data = check_det_dataset(yaml_path, autodownload)  # dict
-                data["path"] = data_dir  # YAML path should be set to '' (relative) or parent (absolute)
+                data = check_det_dataset(yaml_path, autodownload)
+                data["path"] = data_dir
             except Exception as e:
                 raise Exception("error/HUB/dataset_stats/init") from e
 
         self.hub_dir = Path(f"{data['path']}-hub")
         self.im_dir = self.hub_dir / "images"
-        self.stats = {"nc": len(data["names"]), "names": list(data["names"].values())}  # statistics dictionary
+        self.stats = {"nc": len(data["names"]), "names": list(data["names"].values())}
         self.data = data
 
     @staticmethod
     def _unzip(path: Path) -> tuple[bool, str, Path]:
         """Unzip data.zip."""
-        if not str(path).endswith(".zip"):  # path is data.yaml
+        if not str(path).endswith(".zip"):
             return False, None, path
         unzip_dir = unzip_file(path, path=path.parent)
         assert unzip_dir.is_dir(), (
             f"Error unzipping {path}, {unzip_dir} not found. path/to/abc.zip MUST unzip to path/to/abc/"
         )
-        return True, str(unzip_dir), find_dataset_yaml(unzip_dir)  # zipped, data_dir, yaml_path
+        return True, str(unzip_dir), find_dataset_yaml(unzip_dir)
 
     def _hub_ops(self, f: str):
         """Save a compressed image for HUB previews."""
-        compress_one_image(f, self.im_dir / Path(f).name)  # save to dataset-hub
+        compress_one_image(f, self.im_dir / Path(f).name)
 
     def get_json(self, save: bool = False, verbose: bool = False) -> dict:
         """Return dataset JSON for Ultralytics HUB."""
@@ -656,7 +656,7 @@ class HUBDatasetStats:
             """Update labels to integer class and 4 decimal place floats."""
             if self.task == "detect":
                 coordinates = labels["bboxes"]
-            elif self.task in {"segment", "obb"}:  # Segment and OBB use segments. OBB segments are normalized xyxyxyxy
+            elif self.task in {"segment", "obb"}:
                 coordinates = [x.flatten() for x in labels["segments"]]
             elif self.task == "pose":
                 n, nk, nd = labels["keypoints"].shape
@@ -667,19 +667,19 @@ class HUBDatasetStats:
             return [[int(c[0]), *(round(float(x), 4) for x in points)] for c, points in zipped]
 
         for split in "train", "val", "test":
-            self.stats[split] = None  # predefine
+            self.stats[split] = None
             path = self.data.get(split)
 
-            # Check split
-            if path is None:  # no split
+
+            if path is None:
                 continue
-            files = [f for f in Path(path).rglob("*.*") if f.suffix[1:].lower() in IMG_FORMATS]  # image files in split
-            if not files:  # no images
+            files = [f for f in Path(path).rglob("*.*") if f.suffix[1:].lower() in IMG_FORMATS]
+            if not files:
                 continue
 
-            # Get dataset statistics
+
             if self.task == "classify":
-                from torchvision.datasets import ImageFolder  # scope for faster 'import ultralytics'
+                from torchvision.datasets import ImageFolder
 
                 dataset = ImageFolder(self.data[split])
 
@@ -701,7 +701,7 @@ class HUBDatasetStats:
                         np.bincount(label["cls"].astype(int).flatten(), minlength=self.data["nc"])
                         for label in TQDM(dataset.labels, total=len(dataset), desc="Statistics")
                     ]
-                )  # shape(128x80)
+                )
                 self.stats[split] = {
                     "instance_stats": {"total": int(x.sum()), "per_class": x.sum(0).tolist()},
                     "image_stats": {
@@ -712,22 +712,22 @@ class HUBDatasetStats:
                     "labels": [{Path(k).name: _round(v)} for k, v in zip(dataset.im_files, dataset.labels)],
                 }
 
-        # Save, print and return
+
         if save:
-            self.hub_dir.mkdir(parents=True, exist_ok=True)  # makes dataset-hub/
+            self.hub_dir.mkdir(parents=True, exist_ok=True)
             stats_path = self.hub_dir / "stats.json"
             LOGGER.info(f"Saving {stats_path.resolve()}...")
             with open(stats_path, "w", encoding="utf-8") as f:
-                json.dump(self.stats, f)  # save stats.json
+                json.dump(self.stats, f)
         if verbose:
             LOGGER.info(json.dumps(self.stats, indent=2, sort_keys=False))
         return self.stats
 
     def process_images(self) -> Path:
         """Compress images for Ultralytics HUB."""
-        from ultralytics.data import YOLODataset  # ClassificationDataset
+        from ultralytics.data import YOLODataset
 
-        self.im_dir.mkdir(parents=True, exist_ok=True)  # makes dataset-hub/images/
+        self.im_dir.mkdir(parents=True, exist_ok=True)
         for split in "train", "val", "test":
             if self.data.get(split) is None:
                 continue
@@ -756,21 +756,21 @@ def compress_one_image(f: str, f_new: str | None = None, max_dim: int = 1920, qu
         >>> for f in Path("path/to/dataset").rglob("*.jpg"):
         >>>    compress_one_image(f)
     """
-    try:  # use PIL
-        Image.MAX_IMAGE_PIXELS = None  # Fix DecompressionBombError, allow optimization of image > ~178.9 million pixels
+    try:
+        Image.MAX_IMAGE_PIXELS = None
         im = Image.open(f)
-        if im.mode in {"RGBA", "LA"}:  # Convert to RGB if needed (for JPEG)
+        if im.mode in {"RGBA", "LA"}:
             im = im.convert("RGB")
-        r = max_dim / max(im.height, im.width)  # ratio
-        if r < 1.0:  # image too large
+        r = max_dim / max(im.height, im.width)
+        if r < 1.0:
             im = im.resize((int(im.width * r), int(im.height * r)))
-        im.save(f_new or f, "JPEG", quality=quality, optimize=True)  # save
-    except Exception as e:  # use OpenCV
+        im.save(f_new or f, "JPEG", quality=quality, optimize=True)
+    except Exception as e:
         LOGGER.warning(f"HUB ops PIL failure {f}: {e}")
         im = cv2.imread(f)
         im_height, im_width = im.shape[:2]
-        r = max_dim / max(im_height, im_width)  # ratio
-        if r < 1.0:  # image too large
+        r = max_dim / max(im_height, im_width)
+        if r < 1.0:
             im = cv2.resize(im, (int(im_width * r), int(im_height * r)), interpolation=cv2.INTER_AREA)
         cv2.imwrite(str(f_new or f), im)
 
@@ -779,19 +779,19 @@ def load_dataset_cache_file(path: Path) -> dict:
     """Load an Ultralytics *.cache dictionary from path."""
     import gc
 
-    gc.disable()  # reduce pickle load time https://github.com/ultralytics/ultralytics/pull/1585
-    cache = np.load(str(path), allow_pickle=True).item()  # load dict
+    gc.disable()
+    cache = np.load(str(path), allow_pickle=True).item()
     gc.enable()
     return cache
 
 
 def save_dataset_cache_file(prefix: str, path: Path, x: dict, version: str):
     """Save an Ultralytics dataset *.cache dictionary x to path."""
-    x["version"] = version  # add cache version
+    x["version"] = version
     if is_dir_writeable(path.parent):
         if path.exists():
-            path.unlink()  # remove *.cache file if exists
-        with open(str(path), "wb") as file:  # context manager here fixes windows async np.save bug
+            path.unlink()
+        with open(str(path), "wb") as file:
             np.save(file, x)
         LOGGER.info(f"{prefix}New cache created: {path}")
     else:

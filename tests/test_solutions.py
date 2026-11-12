@@ -1,7 +1,7 @@
 # Ultralytics 🚀 AGPL-3.0 License - https://ultralytics.com/license
 
-# Tests Ultralytics Solutions: https://docs.ultralytics.com/solutions/,
-# Includes all solutions except DistanceCalculation and the Security Alarm System.
+
+
 
 import os
 from unittest.mock import patch
@@ -16,18 +16,18 @@ from ultralytics.utils import ASSETS_URL, IS_RASPBERRYPI, TORCH_VERSION, checks
 from ultralytics.utils.downloads import safe_download
 from ultralytics.utils.torch_utils import TORCH_2_4
 
-# Predefined argument values
+
 SHOW = False
-DEMO_VIDEO = "solutions_ci_demo.mp4"  # for all the solutions, except workout, object cropping and parking management
-CROP_VIDEO = "decelera_landscape_min.mov"  # for object cropping solution
-POSE_VIDEO = "solution_ci_pose_demo.mp4"  # only for workouts monitoring solution
-PARKING_VIDEO = "solution_ci_parking_demo.mp4"  # only for parking management solution
-PARKING_AREAS_JSON = "solution_ci_parking_areas.json"  # only for parking management solution
-PARKING_MODEL = "solutions_ci_parking_model.pt"  # only for parking management solution
-VERTICAL_VIDEO = "solution_vertical_demo.mp4"  # only for vertical line counting
-REGION = [(10, 200), (540, 200), (540, 180), (10, 180)]  # for object counting, speed estimation and queue management
-HORIZONTAL_LINE = [(10, 200), (540, 200)]  # for object counting
-VERTICAL_LINE = [(320, 0), (320, 400)]  # for object counting
+DEMO_VIDEO = "solutions_ci_demo.mp4"
+CROP_VIDEO = "decelera_landscape_min.mov"
+POSE_VIDEO = "solution_ci_pose_demo.mp4"
+PARKING_VIDEO = "solution_ci_parking_demo.mp4"
+PARKING_AREAS_JSON = "solution_ci_parking_areas.json"
+PARKING_MODEL = "solutions_ci_parking_model.pt"
+VERTICAL_VIDEO = "solution_vertical_demo.mp4"
+REGION = [(10, 200), (540, 200), (540, 180), (10, 180)]
+HORIZONTAL_LINE = [(10, 200), (540, 200)]
+VERTICAL_LINE = [(320, 0), (320, 400)]
 
 
 def process_video(solution, video_path: str, needs_frame_count: bool = False):
@@ -178,8 +178,8 @@ def process_video(solution, video_path: str, needs_frame_count: bool = False):
             "StreamlitInference",
             solutions.Inference,
             False,
-            None,  # streamlit application doesn't require video file
-            {},  # streamlit application doesn't accept arguments
+            None,
+            {},
         ),
     ],
 )
@@ -195,11 +195,11 @@ def test_solution(name, solution_class, needs_frame_count, video, kwargs, tmp_pa
         safe_download(url=f"{ASSETS_URL}/{PARKING_MODEL}", dir=tmp_path)
 
     elif name == "StreamlitInference":
-        if checks.check_imshow():  # do not merge with elif above
-            solution_class(**kwargs).inference()  # requires interactive GUI environment
+        if checks.check_imshow():
+            solution_class(**kwargs).inference()
         return
 
-    # Update kwargs to use tmp_path
+
     kwargs_updated = {}
     for key in kwargs:
         if key.startswith("temp_"):
@@ -245,7 +245,7 @@ def test_parking_json_none():
 def test_analytics_graph_not_supported():
     """Test that unsupported analytics type raises ValueError."""
     try:
-        analytics = solutions.Analytics(analytics_type="test")  # 'test' is unsupported
+        analytics = solutions.Analytics(analytics_type="test")
         analytics.process(im0=np.zeros((640, 480, 3), dtype=np.uint8), frame_number=0)
         assert False, "Expected ValueError for unsupported chart type"
     except ValueError as e:
@@ -302,9 +302,9 @@ def test_streamlit_handle_video_upload_creates_file():
 @pytest.mark.skipif(IS_RASPBERRYPI, reason="Disabled due to slow performance on Raspberry Pi.")
 def test_similarity_search(tmp_path):
     """Test similarity search solution with sample images and text query."""
-    safe_download(f"{ASSETS_URL}/4-imgs-similaritysearch.zip", dir=tmp_path)  # 4 dog images for testing in a zip file
+    safe_download(f"{ASSETS_URL}/4-imgs-similaritysearch.zip", dir=tmp_path)
     searcher = solutions.VisualAISearch(data=str(tmp_path / "4-imgs-similaritysearch"))
-    _ = searcher("a dog sitting on a bench")  # Returns the results in format "- img name | similarity score"
+    _ = searcher("a dog sitting on a bench")
 
 
 @pytest.mark.skipif(not TORCH_2_4, reason=f"VisualAISearch requires torch>=2.4 (found torch=={TORCH_VERSION})")

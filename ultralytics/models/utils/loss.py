@@ -98,10 +98,10 @@ class DETRLoss(nn.Module):
             - Focal Loss (if self.fl is True)
             - BCE Loss (default fallback)
         """
-        # Logits: [b, query, num_classes], gt_class: list[[n, 1]]
+
         name_class = f"loss_class{postfix}"
         bs, nq = pred_scores.shape[:2]
-        # one_hot = F.one_hot(targets, self.nc + 1)[..., :-1]  # (bs, num_queries, num_classes)
+
         one_hot = torch.zeros((bs, nq, self.nc + 1), dtype=torch.int64, device=targets.device)
         one_hot.scatter_(2, targets.unsqueeze(-1), 1)
         one_hot = one_hot[..., :-1]
@@ -114,7 +114,7 @@ class DETRLoss(nn.Module):
                 loss_cls = self.fl(pred_scores, one_hot.float())
             loss_cls /= max(num_gts, 1) / nq
         else:
-            loss_cls = nn.BCEWithLogitsLoss(reduction="none")(pred_scores, gt_scores).mean(1).sum()  # YOLO CLS loss
+            loss_cls = nn.BCEWithLogitsLoss(reduction="none")(pred_scores, gt_scores).mean(1).sum()
 
         return {name_class: loss_cls.squeeze() * self.loss_gain["class"]}
 
@@ -136,7 +136,7 @@ class DETRLoss(nn.Module):
         Notes:
             If no ground truth boxes are provided (empty list), zero-valued tensors are returned for both losses.
         """
-        # Boxes: [b, query, 4], gt_bbox: list[[n, 4]]
+
         name_bbox = f"loss_bbox{postfix}"
         name_giou = f"loss_giou{postfix}"
 
@@ -152,36 +152,36 @@ class DETRLoss(nn.Module):
         loss[name_giou] = self.loss_gain["giou"] * loss[name_giou]
         return {k: v.squeeze() for k, v in loss.items()}
 
-    # This function is for future RT-DETR Segment models
-    # def _get_loss_mask(self, masks, gt_mask, match_indices, postfix=''):
-    #     # masks: [b, query, h, w], gt_mask: list[[n, H, W]]
-    #     name_mask = f'loss_mask{postfix}'
-    #     name_dice = f'loss_dice{postfix}'
-    #
-    #     loss = {}
-    #     if sum(len(a) for a in gt_mask) == 0:
-    #         loss[name_mask] = torch.tensor(0., device=self.device)
-    #         loss[name_dice] = torch.tensor(0., device=self.device)
-    #         return loss
-    #
-    #     num_gts = len(gt_mask)
-    #     src_masks, target_masks = self._get_assigned_bboxes(masks, gt_mask, match_indices)
-    #     src_masks = F.interpolate(src_masks.unsqueeze(0), size=target_masks.shape[-2:], mode='bilinear')[0]
-    #     # TODO: torch does not have `sigmoid_focal_loss`, but it's not urgent since we don't use mask branch for now.
-    #     loss[name_mask] = self.loss_gain['mask'] * F.sigmoid_focal_loss(src_masks, target_masks,
-    #                                                                     torch.tensor([num_gts], dtype=torch.float32))
-    #     loss[name_dice] = self.loss_gain['dice'] * self._dice_loss(src_masks, target_masks, num_gts)
-    #     return loss
 
-    # This function is for future RT-DETR Segment models
-    # @staticmethod
-    # def _dice_loss(inputs, targets, num_gts):
-    #     inputs = F.sigmoid(inputs).flatten(1)
-    #     targets = targets.flatten(1)
-    #     numerator = 2 * (inputs * targets).sum(1)
-    #     denominator = inputs.sum(-1) + targets.sum(-1)
-    #     loss = 1 - (numerator + 1) / (denominator + 1)
-    #     return loss.sum() / num_gts
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     def _get_loss_aux(
         self,
@@ -211,7 +211,7 @@ class DETRLoss(nn.Module):
         Returns:
             (dict[str, torch.Tensor]): Dictionary of auxiliary losses.
         """
-        # NOTE: loss class, bbox, giou, mask, dice
+
         loss = torch.zeros(5 if masks is not None else 3, device=pred_bboxes.device)
         if match_indices is None and self.use_uni_match:
             match_indices = self.matcher(
@@ -239,19 +239,19 @@ class DETRLoss(nn.Module):
             loss[0] += loss_[f"loss_class{postfix}"]
             loss[1] += loss_[f"loss_bbox{postfix}"]
             loss[2] += loss_[f"loss_giou{postfix}"]
-            # if masks is not None and gt_mask is not None:
-            #     loss_ = self._get_loss_mask(aux_masks, gt_mask, match_indices, postfix)
-            #     loss[3] += loss_[f'loss_mask{postfix}']
-            #     loss[4] += loss_[f'loss_dice{postfix}']
+
+
+
+
 
         loss = {
             f"loss_class_aux{postfix}": loss[0],
             f"loss_bbox_aux{postfix}": loss[1],
             f"loss_giou_aux{postfix}": loss[2],
         }
-        # if masks is not None and gt_mask is not None:
-        #     loss[f'loss_mask_aux{postfix}'] = loss[3]
-        #     loss[f'loss_dice_aux{postfix}'] = loss[4]
+
+
+
         return loss
 
     @staticmethod
@@ -345,7 +345,7 @@ class DETRLoss(nn.Module):
         return {
             **self._get_loss_class(pred_scores, targets, gt_scores, len(gt_bboxes), postfix),
             **self._get_loss_bbox(pred_bboxes, gt_bboxes, postfix),
-            # **(self._get_loss_mask(masks, gt_mask, match_indices, postfix) if masks is not None and gt_mask is not None else {})
+
         }
 
     def forward(
@@ -420,19 +420,19 @@ class RTDETRDetectionLoss(DETRLoss):
         pred_bboxes, pred_scores = preds
         total_loss = super().forward(pred_bboxes, pred_scores, batch)
 
-        # Check for denoising metadata to compute denoising training loss
+
         if dn_meta is not None:
             dn_pos_idx, dn_num_group = dn_meta["dn_pos_idx"], dn_meta["dn_num_group"]
             assert len(batch["gt_groups"]) == len(dn_pos_idx)
 
-            # Get the match indices for denoising
+
             match_indices = self.get_dn_match_indices(dn_pos_idx, dn_num_group, batch["gt_groups"])
 
-            # Compute the denoising training loss
+
             dn_loss = super().forward(dn_bboxes, dn_scores, batch, postfix="_dn", match_indices=match_indices)
             total_loss.update(dn_loss)
         else:
-            # If no denoising metadata is provided, set denoising loss to zero
+
             total_loss.update({f"{k}_dn": torch.tensor(0.0, device=self.device) for k in total_loss.keys()})
 
         return total_loss

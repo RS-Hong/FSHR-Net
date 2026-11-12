@@ -231,8 +231,8 @@ class HuggingFaceVideoClassifier:
             ]
         )
 
-        processed_crops = [transform(torch.from_numpy(crop).permute(2, 0, 1)) for crop in crops]  # (T, C, H, W)
-        output = torch.stack(processed_crops).unsqueeze(0).to(self.device)  # (1, T, C, H, W)
+        processed_crops = [transform(torch.from_numpy(crop).permute(2, 0, 1)) for crop in crops]
+        output = torch.stack(processed_crops).unsqueeze(0).to(self.device)
         if self.fp16:
             output = output.half()
         return output
@@ -269,8 +269,8 @@ class HuggingFaceVideoClassifier:
         pred_confs = []
 
         with torch.no_grad():
-            logits_per_video = outputs  # Assuming outputs is already the logits tensor
-            probs = logits_per_video.softmax(dim=-1)  # Use softmax to convert logits to probabilities
+            logits_per_video = outputs
+            probs = logits_per_video.softmax(dim=-1)
 
         for prob in probs:
             top2_indices = prob.topk(2).indices.tolist()
@@ -296,12 +296,12 @@ def crop_and_pad(frame: np.ndarray, box: list[float], margin_percent: int) -> np
     x1, y1, x2, y2 = map(int, box)
     w, h = x2 - x1, y2 - y1
 
-    # Add margin
+
     margin_x, margin_y = int(w * margin_percent / 100), int(h * margin_percent / 100)
     x1, y1 = max(0, x1 - margin_x), max(0, y1 - margin_y)
     x2, y2 = min(frame.shape[1], x2 + margin_x), min(frame.shape[0], y2 + margin_y)
 
-    # Take square crop from frame
+
     size = max(y2 - y1, x2 - x1)
     center_y, center_x = (y1 + y2) // 2, (x1 + x2) // 2
     half_size = size // 2
@@ -351,7 +351,7 @@ def run(
             "cooking",
             "sitting",
         ]
-    # Initialize models and device
+
     device = select_device(device)
     yolo_model = YOLO(weights).to(device)
     if video_classifier_model in TorchVisionVideoClassifier.available_model_names():
@@ -365,24 +365,24 @@ def run(
             labels, model_name=video_classifier_model, device=device, fp16=fp16
         )
 
-    # Initialize video capture
+
     if source.startswith("http") and urlparse(source).hostname in {"www.youtube.com", "youtube.com", "youtu.be"}:
         source = get_best_youtube_url(source)
     elif not source.endswith(".mp4"):
         raise ValueError("Invalid source. Supported sources are YouTube URLs and MP4 files.")
     cap = cv2.VideoCapture(source)
 
-    # Get video properties
+
     frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = cap.get(cv2.CAP_PROP_FPS)
 
-    # Initialize VideoWriter
+
     if output_path is not None:
         fourcc = cv2.VideoWriter_fourcc(*"mp4v")
         out = cv2.VideoWriter(output_path, fourcc, fps, (frame_width, frame_height))
 
-    # Initialize track history
+
     track_history = defaultdict(list)
     frame_counter = 0
 
@@ -398,14 +398,14 @@ def run(
 
         frame_counter += 1
 
-        # Run YOLO tracking
-        results = yolo_model.track(frame, persist=True, classes=[0])  # Track only person class
+
+        results = yolo_model.track(frame, persist=True, classes=[0])
 
         if results[0].boxes.is_track:
             boxes = results[0].boxes.xyxy.cpu().numpy()
             track_ids = results[0].boxes.id.cpu().numpy()
 
-            # Visualize prediction
+
             annotator = Annotator(frame, line_width=3, font_size=10, pil=False)
 
             if frame_counter % skip_frame == 0:
@@ -449,11 +449,11 @@ def run(
                     label_text = " | ".join([f"{label} ({conf:.2f})" for label, conf in top2_preds])
                     annotator.box_label(box, label_text, color=(0, 0, 255))
 
-        # Write the annotated frame to the output video
+
         if output_path is not None:
             out.write(frame)
 
-        # Display the annotated frame
+
         cv2.imshow("YOLOv8 Tracking with S3D Classification", frame)
 
         if cv2.waitKey(1) & 0xFF == ord("q"):

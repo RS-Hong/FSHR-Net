@@ -69,7 +69,7 @@ class YOLOEDetectValidator(DetectionValidator):
 
         desc = "Get visual prompt embeddings from samples"
 
-        # Count samples per class
+
         for batch in dataloader:
             cls = batch["cls"].squeeze(-1).to(torch.int).unique()
             count = torch.bincount(cls, minlength=len(names))
@@ -77,11 +77,11 @@ class YOLOEDetectValidator(DetectionValidator):
 
         cls_visual_num = cls_visual_num.to(self.device)
 
-        # Extract visual prompt embeddings
+
         pbar = TQDM(dataloader, total=len(dataloader), desc=desc)
         for batch in pbar:
             batch = self.preprocess(batch)
-            preds = model.get_visual_pe(batch["img"], visual=batch["visuals"])  # (B, max_n, embed_dim)
+            preds = model.get_visual_pe(batch["img"], visual=batch["visuals"])
 
             batch_idx = batch["batch_idx"]
             for i in range(preds.shape[0]):
@@ -91,7 +91,7 @@ class YOLOEDetectValidator(DetectionValidator):
                 for c in cls:
                     visual_pe[c] += preds[i][pad_cls == c].sum(0) / cls_visual_num[c]
 
-        # Normalize embeddings for classes with samples, set others to zero
+
         visual_pe[cls_visual_num != 0] = F.normalize(visual_pe[cls_visual_num != 0], dim=-1, p=2)
         visual_pe[cls_visual_num == 0] = 0
         return visual_pe.unsqueeze(0)
@@ -160,7 +160,7 @@ class YOLOEDetectValidator(DetectionValidator):
             if load_vp:
                 LOGGER.info("Validate using the visual prompt.")
                 self.args.half = False
-                # Directly use the same dataloader for visual embeddings extracted during training
+
                 vpe = self.get_visual_pe(self.dataloader, model)
                 model.set_classes(names, vpe)
             else:
@@ -176,7 +176,7 @@ class YOLOEDetectValidator(DetectionValidator):
             if isinstance(model, (str, Path)):
                 from ultralytics.nn.tasks import load_checkpoint
 
-                model, _ = load_checkpoint(model, device=self.device)  # model, ckpt
+                model, _ = load_checkpoint(model, device=self.device)
             model.eval().to(self.device)
             data = check_det_dataset(refer_data or self.args.data)
             names = [name.split("/", 1)[0] for name in list(data["names"].values())]
@@ -184,13 +184,13 @@ class YOLOEDetectValidator(DetectionValidator):
             if load_vp:
                 LOGGER.info("Validate using the visual prompt.")
                 self.args.half = False
-                # TODO: need to check if the names from refer data is consistent with the evaluated dataset
-                # could use same dataset or refer to extract visual prompt embeddings
+
+
                 dataloader = self.get_vpe_dataloader(data)
                 vpe = self.get_visual_pe(dataloader, model)
                 model.set_classes(names, vpe)
                 stats = super().__call__(model=deepcopy(model))
-            elif isinstance(model.model[-1], YOLOEDetect) and hasattr(model.model[-1], "lrpc"):  # prompt-free
+            elif isinstance(model.model[-1], YOLOEDetect) and hasattr(model.model[-1], "lrpc"):
                 return super().__call__(trainer, model)
             else:
                 LOGGER.info("Validate using the text prompt.")

@@ -36,18 +36,18 @@ def zeropower_via_newtonschulz5(G: torch.Tensor, eps: float = 1e-7) -> torch.Ten
     """
     assert len(G.shape) == 2
     X = G.bfloat16()
-    X /= X.norm() + eps  # ensure top singular value <= 1
+    X /= X.norm() + eps
     if G.size(0) > G.size(1):
         X = X.T
-    for a, b, c in [  # num_steps fixed at 5
-        # original params
+    for a, b, c in [
+
         (3.4445, -4.7750, 2.0315),
         (3.4445, -4.7750, 2.0315),
         (3.4445, -4.7750, 2.0315),
         (3.4445, -4.7750, 2.0315),
         (3.4445, -4.7750, 2.0315),
     ]:
-        # for _ in range(steps):
+
         A = X @ X.T
         B = b * A + c * A @ A
         X = a * X + B @ X
@@ -89,7 +89,7 @@ def muon_update(grad: torch.Tensor, momentum: torch.Tensor, beta: float = 0.95, 
     """
     momentum.lerp_(grad, 1 - beta)
     update = grad.lerp(momentum, beta) if nesterov else momentum
-    if update.ndim == 4:  # for the case of conv filters
+    if update.ndim == 4:
         update = update.view(len(update), -1)
     update = zeropower_via_newtonschulz5(update)
     update *= max(1, grad.size(-2) / grad.size(-1)) ** 0.5
@@ -202,9 +202,9 @@ class MuSGD(optim.Optimizer):
                 loss = closure()
 
         for group in self.param_groups:
-            # Muon
+
             if group["use_muon"]:
-                # generate weight updates in distributed fashion
+
                 for p in group["params"]:
                     lr = group["lr"]
                     if p.grad is None:
@@ -220,7 +220,7 @@ class MuSGD(optim.Optimizer):
                     )
                     p.add_(update.reshape(p.shape), alpha=-(lr * self.muon))
 
-                    # SGD update
+
                     if group["weight_decay"] != 0:
                         grad = grad.add(p, alpha=group["weight_decay"])
                     state["momentum_buffer_SGD"].mul_(group["momentum"]).add_(grad)
@@ -230,7 +230,7 @@ class MuSGD(optim.Optimizer):
                         else state["momentum_buffer_SGD"]
                     )
                     p.add_(sgd_update, alpha=-(lr * self.sgd))
-            else:  # SGD
+            else:
                 for p in group["params"]:
                     lr = group["lr"]
                     if p.grad is None:
@@ -326,8 +326,8 @@ class Muon(optim.Optimizer):
         for group in self.param_groups:
             for p in group["params"]:
                 if p.grad is None:
-                    # continue
-                    p.grad = torch.zeros_like(p)  # Force synchronization
+
+                    p.grad = torch.zeros_like(p)
                 state = self.state[p]
                 if len(state) == 0:
                     state["momentum_buffer"] = torch.zeros_like(p)

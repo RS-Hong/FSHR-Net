@@ -46,29 +46,29 @@ def main(onnx_model: str, input_image: str) -> list[dict[str, Any]]:
         (list[dict[str, Any]]): List of dictionaries containing detection information such as class_id, class_name,
             confidence, box coordinates, and scale factor.
     """
-    # Load the ONNX model
+
     model: cv2.dnn.Net = cv2.dnn.readNetFromONNX(onnx_model)
 
-    # Read the input image
+
     original_image: np.ndarray = cv2.imread(input_image)
     [height, width, _] = original_image.shape
 
-    # Prepare a square image for inference
+
     length = max((height, width))
     image = np.zeros((length, length, 3), np.uint8)
     image[0:height, 0:width] = original_image
 
-    # Calculate scale factor
+
     scale = length / 640
 
-    # Preprocess the image and prepare blob for model
+
     blob = cv2.dnn.blobFromImage(image, scalefactor=1 / 255, size=(640, 640), swapRB=True)
     model.setInput(blob)
 
-    # Perform inference
+
     outputs = model.forward()
 
-    # Prepare output array
+
     outputs = np.array([cv2.transpose(outputs[0])])
     rows = outputs.shape[1]
 
@@ -76,27 +76,27 @@ def main(onnx_model: str, input_image: str) -> list[dict[str, Any]]:
     scores = []
     class_ids = []
 
-    # Iterate through output to collect bounding boxes, confidence scores, and class IDs
+
     for i in range(rows):
         classes_scores = outputs[0][i][4:]
         (_minScore, maxScore, _minClassLoc, (_x, maxClassIndex)) = cv2.minMaxLoc(classes_scores)
         if maxScore >= 0.25:
             box = [
-                outputs[0][i][0] - (0.5 * outputs[0][i][2]),  # x center - width/2 = left x
-                outputs[0][i][1] - (0.5 * outputs[0][i][3]),  # y center - height/2 = top y
-                outputs[0][i][2],  # width
-                outputs[0][i][3],  # height
+                outputs[0][i][0] - (0.5 * outputs[0][i][2]),
+                outputs[0][i][1] - (0.5 * outputs[0][i][3]),
+                outputs[0][i][2],
+                outputs[0][i][3],
             ]
             boxes.append(box)
             scores.append(maxScore)
             class_ids.append(maxClassIndex)
 
-    # Apply NMS (Non-maximum suppression)
+
     result_boxes = np.array(cv2.dnn.NMSBoxes(boxes, scores, 0.25, 0.45, 0.5)).flatten()
 
     detections = []
 
-    # Iterate through NMS results to draw bounding boxes and labels
+
     for index in result_boxes:
         index = int(index)
         box = boxes[index]
@@ -118,7 +118,7 @@ def main(onnx_model: str, input_image: str) -> list[dict[str, Any]]:
             round((box[1] + box[3]) * scale),
         )
 
-    # Display the image with bounding boxes
+
     cv2.imshow("image", original_image)
     cv2.waitKey(0)
     cv2.destroyAllWindows()

@@ -98,7 +98,7 @@ class Sam3DualViTDetNeck(nn.Module):
 
         self.sam2_convs = None
         if add_sam2_neck:
-            # Assumes sam2 neck is just a clone of the original neck
+
             self.sam2_convs = deepcopy(self.convs)
 
     def forward(
@@ -106,7 +106,7 @@ class Sam3DualViTDetNeck(nn.Module):
     ) -> tuple[list[torch.Tensor], list[torch.Tensor], list[torch.Tensor] | None, list[torch.Tensor] | None]:
         """Get feature maps and positional encodings from the neck."""
         xs = self.trunk(tensor_list)
-        x = xs[-1]  # simpleFPN
+        x = xs[-1]
         sam3_out, sam3_pos = self.sam_forward_feature_levels(x, self.convs)
         if self.sam2_convs is None:
             return sam3_out, sam3_pos, None, None

@@ -13,7 +13,7 @@ from ultralytics.utils import ENVIRONMENT, GIT, LOGGER, PYTHON_VERSION, RANK, SE
 
 PREFIX = colorstr("Platform: ")
 
-# Configurable platform URL for debugging (e.g. ULTRALYTICS_PLATFORM_URL=http://localhost:3000)
+
 PLATFORM_URL = os.getenv("ULTRALYTICS_PLATFORM_URL", "https://platform.ultralytics.com").rstrip("/")
 PLATFORM_API_URL = f"{PLATFORM_URL}/api/webhooks"
 
@@ -26,17 +26,17 @@ def slugify(text):
 
 
 try:
-    assert not TESTS_RUNNING  # do not log pytest
+    assert not TESTS_RUNNING
     assert SETTINGS.get("platform", False) is True or os.getenv("ULTRALYTICS_API_KEY") or SETTINGS.get("api_key")
     _api_key = os.getenv("ULTRALYTICS_API_KEY") or SETTINGS.get("api_key")
-    assert _api_key  # verify API key is present
+    assert _api_key
 
     import requests
 
     from ultralytics.utils.logger import ConsoleLogger, SystemLogger
     from ultralytics.utils.torch_utils import model_info_for_loggers
 
-    _executor = ThreadPoolExecutor(max_workers=10)  # Bounded thread pool for async operations
+    _executor = ThreadPoolExecutor(max_workers=10)
 
 except (AssertionError, ImportError):
     _api_key = None
@@ -65,7 +65,7 @@ def resolve_platform_uri(uri, hard=True):
     """
     import requests
 
-    path = uri[5:]  # Remove "ul://"
+    path = uri[5:]
     parts = path.split("/")
 
     api_key = os.getenv("ULTRALYTICS_API_KEY") or SETTINGS.get("api_key")
@@ -75,12 +75,12 @@ def resolve_platform_uri(uri, hard=True):
     base = PLATFORM_API_URL
     headers = {"Authorization": f"Bearer {api_key}"}
 
-    # ul://username/datasets/slug
+
     if len(parts) == 3 and parts[1] == "datasets":
         username, _, slug = parts
         url = f"{base}/datasets/{username}/{slug}/export"
 
-    # ul://username/project/model
+
     elif len(parts) == 3:
         username, project, model = parts
         url = f"{base}/models/{username}/{project}/{model}/download"
@@ -89,14 +89,14 @@ def resolve_platform_uri(uri, hard=True):
         raise ValueError(f"Invalid platform URI: {uri}. Use ul://user/datasets/name or ul://user/project/model")
 
     try:
-        timeout = 3600 if "/datasets/" in url else 90  # NDJSON generation can be slow for large datasets
+        timeout = 3600 if "/datasets/" in url else 90
         r = requests.head(url, headers=headers, allow_redirects=False, timeout=timeout)
 
-        # Handle redirect responses (301, 302, 303, 307, 308)
-        if 300 <= r.status_code < 400 and "location" in r.headers:
-            return r.headers["location"]  # Return signed URL
 
-        # Handle error responses
+        if 300 <= r.status_code < 400 and "location" in r.headers:
+            return r.headers["location"]
+
+
         if r.status_code == 401:
             raise ValueError(f"Invalid ULTRALYTICS_API_KEY for '{uri}'")
         if r.status_code == 403:
@@ -109,7 +109,7 @@ def resolve_platform_uri(uri, hard=True):
         if r.status_code == 409:
             raise RuntimeError(f"Resource not ready: {uri}. Dataset may still be processing.")
 
-        # Unexpected response
+
         r.raise_for_status()
         raise RuntimeError(f"Unexpected response from platform for '{uri}': {r.status_code}")
 
@@ -125,25 +125,25 @@ def _interp_plot(plot, n=101):
     import numpy as np
 
     if not plot.get("x") or not plot.get("y"):
-        return plot  # No interpolation needed (e.g., confusion_matrix)
+        return plot
 
     x, y = np.array(plot["x"]), np.array(plot["y"])
     if len(x) <= n:
-        return plot  # Already small enough
+        return plot
 
-    # New x values (101 points gives clean 0.01 increments: 0, 0.01, 0.02, ..., 1.0)
+
     x_new = np.linspace(x[0], x[-1], n)
 
-    # Interpolate y values (handle both 1D and 2D arrays)
+
     if y.ndim == 1:
         y_new = np.interp(x_new, x, y)
     else:
         y_new = np.array([np.interp(x_new, x, yi) for yi in y])
 
-    # Also interpolate ap if present (for PR curves)
+
     result = {**plot, "x": x_new.tolist(), "y": y_new.tolist()}
     if "ap" in plot:
-        result["ap"] = plot["ap"]  # Keep AP values as-is (per-class scalars)
+        result["ap"] = plot["ap"]
 
     return result
 
@@ -179,7 +179,7 @@ def _upload_model(model_path, project, name):
         if not model_path.exists():
             return None
 
-        # Get signed upload URL
+
         response = requests.post(
             f"{PLATFORM_API_URL}/models/upload",
             json={"project": project, "name": name, "filename": model_path.name},
@@ -189,17 +189,17 @@ def _upload_model(model_path, project, name):
         response.raise_for_status()
         data = response.json()
 
-        # Upload to GCS
+
         with open(model_path, "rb") as f:
             requests.put(
                 data["uploadUrl"],
                 data=f,
                 headers={"Content-Type": "application/octet-stream"},
-                timeout=600,  # 10 min timeout for large models
+                timeout=600,
             ).raise_for_status()
 
-        # url = f"{PLATFORM_URL}/{project}/{name}"
-        # LOGGER.info(f"{PREFIX}Model uploaded to {url}")
+
+
         return data.get("gcsPath")
 
     except Exception as e:
@@ -222,7 +222,7 @@ def _get_environment_info():
     from ultralytics import __version__
     from ultralytics.utils.torch_utils import get_cpu_info, get_gpu_info
 
-    # Get RAM and disk totals
+
     memory = psutil.virtual_memory()
     disk_usage = shutil.disk_usage("/")
 
@@ -236,11 +236,11 @@ def _get_environment_info():
         "cpuCount": os.cpu_count() or 0,
         "cpu": get_cpu_info(),
         "command": " ".join(sys.argv),
-        "totalRamGb": round(memory.total / (1 << 30), 1),  # Total RAM in GB
-        "totalDiskGb": round(disk_usage.total / (1 << 30), 1),  # Total disk in GB
+        "totalRamGb": round(memory.total / (1 << 30), 1),
+        "totalDiskGb": round(disk_usage.total / (1 << 30), 1),
     }
 
-    # Git info using cached GIT singleton (no subprocess calls)
+
     try:
         if GIT.is_repo:
             if GIT.origin:
@@ -248,11 +248,11 @@ def _get_environment_info():
             if GIT.branch:
                 env["gitBranch"] = GIT.branch
             if GIT.commit:
-                env["gitCommit"] = GIT.commit[:12]  # Short hash
+                env["gitCommit"] = GIT.commit[:12]
     except Exception:
         pass
 
-    # GPU info
+
     try:
         if torch.cuda.is_available():
             env["gpuCount"] = torch.cuda.device_count()
@@ -276,7 +276,7 @@ def on_pretrain_routine_start(trainer):
     if RANK not in {-1, 0} or not trainer.args.project:
         return
 
-    # Per-trainer state to isolate concurrent training runs
+
     trainer._platform_model_id = None
     trainer._platform_last_upload = time()
 
@@ -284,7 +284,7 @@ def on_pretrain_routine_start(trainer):
     url = f"{PLATFORM_URL}/{project}/{name}"
     LOGGER.info(f"{PREFIX}Streaming to {url}")
 
-    # Create callback to send console output to Platform
+
     def send_console_output(content, line_count, chunk_id):
         """Send batched console output to Platform webhook."""
         _send_async(
@@ -295,18 +295,18 @@ def on_pretrain_routine_start(trainer):
             getattr(trainer, "_platform_model_id", None),
         )
 
-    # Start console capture with batching (5 lines or 5 seconds)
+
     trainer._platform_console_logger = ConsoleLogger(batch_size=5, flush_interval=5.0, on_flush=send_console_output)
     trainer._platform_console_logger.start_capture()
 
-    # Collect environment info (W&B-style metadata)
+
     environment = _get_environment_info()
 
-    # Build trainArgs - callback runs before get_dataset() so args.data is still original (e.g., ul:// URIs)
-    # Note: model_info is sent later in on_fit_epoch_end (epoch 0) when the model is actually loaded
+
+
     train_args = {k: str(v) for k, v in vars(trainer.args).items()}
 
-    # Send synchronously to get modelId for subsequent webhooks
+
     response = _send(
         "training_started",
         {
@@ -333,7 +333,7 @@ def on_fit_epoch_end(trainer):
     if trainer.optimizer and trainer.optimizer.param_groups:
         metrics["lr"] = trainer.optimizer.param_groups[0]["lr"]
 
-    # Extract model info at epoch 0 (sent as separate field, not in metrics)
+
     model_info = None
     if trainer.epoch == 0:
         try:
@@ -346,7 +346,7 @@ def on_fit_epoch_end(trainer):
         except Exception:
             pass
 
-    # Get system metrics (cache SystemLogger on trainer for efficiency)
+
     system = {}
     try:
         if not hasattr(trainer, "_platform_system_logger"):
@@ -379,7 +379,7 @@ def on_model_save(trainer):
     if RANK not in {-1, 0} or not trainer.args.project:
         return
 
-    # Rate limit to every 15 minutes (900 seconds)
+
     if time() - getattr(trainer, "_platform_last_upload", 0) < 900:
         return
 
@@ -399,29 +399,29 @@ def on_train_end(trainer):
 
     project, name = _get_project_name(trainer)
 
-    # Stop console capture
+
     if hasattr(trainer, "_platform_console_logger") and trainer._platform_console_logger:
         trainer._platform_console_logger.stop_capture()
         trainer._platform_console_logger = None
 
-    # Upload best model (blocking to ensure it completes)
+
     model_path = None
     model_size = None
     if trainer.best and Path(trainer.best).exists():
         model_size = Path(trainer.best).stat().st_size
         model_path = _upload_model(trainer.best, project, name)
 
-    # Collect plots from trainer and validator, deduplicating by type
+
     plots_by_type = {}
     for info in getattr(trainer, "plots", {}).values():
         if info.get("data") and info["data"].get("type"):
             plots_by_type[info["data"]["type"]] = info["data"]
     for info in getattr(getattr(trainer, "validator", None), "plots", {}).values():
         if info.get("data") and info["data"].get("type"):
-            plots_by_type.setdefault(info["data"]["type"], info["data"])  # Don't overwrite trainer plots
-    plots = [_interp_plot(p) for p in plots_by_type.values()]  # Interpolate curves to reduce size
+            plots_by_type.setdefault(info["data"]["type"], info["data"])
+    plots = [_interp_plot(p) for p in plots_by_type.values()]
 
-    # Get class names
+
     names = getattr(getattr(trainer, "validator", None), "names", None) or (trainer.data or {}).get("names")
     class_names = list(names.values()) if isinstance(names, dict) else list(names) if names else None
 

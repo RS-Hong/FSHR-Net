@@ -36,8 +36,8 @@ def bbox_iof(polygon1: np.ndarray, bbox2: np.ndarray, eps: float = 1e-6) -> np.n
     from shapely.geometry import Polygon
 
     polygon1 = polygon1.reshape(-1, 4, 2)
-    lt_point = np.min(polygon1, axis=-2)  # left-top
-    rb_point = np.max(polygon1, axis=-2)  # right-bottom
+    lt_point = np.min(polygon1, axis=-2)
+    rb_point = np.max(polygon1, axis=-2)
     bbox1 = np.concatenate([lt_point, rb_point], axis=-1)
 
     lt = np.maximum(bbox1[:, None, :2], bbox2[..., :2])
@@ -158,10 +158,10 @@ def get_window_obj(anno: dict[str, Any], windows: np.ndarray, iof_thr: float = 0
         label[:, 1::2] *= w
         label[:, 2::2] *= h
         iofs = bbox_iof(label[:, 1:], windows)
-        # Unnormalized and misaligned coordinates
-        return [(label[iofs[:, i] >= iof_thr]) for i in range(len(windows))]  # window_anns
+
+        return [(label[iofs[:, i] >= iof_thr]) for i in range(len(windows))]
     else:
-        return [np.zeros((0, 9), dtype=np.float32) for _ in range(len(windows))]  # window_anns
+        return [np.zeros((0, 9), dtype=np.float32) for _ in range(len(windows))]
 
 
 def crop_and_save(

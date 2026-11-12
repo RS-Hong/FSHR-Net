@@ -357,12 +357,12 @@ class BaseMixTransform:
         if random.uniform(0, 1) > self.p:
             return labels
 
-        # Get index of one or three other images
+
         indexes = self.get_indexes()
         if isinstance(indexes, int):
             indexes = [indexes]
 
-        # Get images information will be used for Mosaic, CutMix or MixUp
+
         mix_labels = [self.dataset.get_image_and_label(i) for i in indexes]
 
         if self.pre_transform is not None:
@@ -370,9 +370,9 @@ class BaseMixTransform:
                 mix_labels[i] = self.pre_transform(data)
         labels["mix_labels"] = mix_labels
 
-        # Update cls and texts
+
         labels = self._update_label_text(labels)
-        # Mosaic, CutMix or MixUp
+
         labels = self._mix_transform(labels)
         labels.pop("mix_labels", None)
         return labels
@@ -500,7 +500,7 @@ class Mosaic(BaseMixTransform):
         assert n in {4, 9}, "grid must be equal to 4 or 9."
         super().__init__(dataset=dataset, p=p)
         self.imgsz = imgsz
-        self.border = (-imgsz // 2, -imgsz // 2)  # width, height
+        self.border = (-imgsz // 2, -imgsz // 2)
         self.n = n
         self.buffer_enabled = self.dataset.cache != "ram"
 
@@ -519,9 +519,9 @@ class Mosaic(BaseMixTransform):
             >>> indexes = mosaic.get_indexes()
             >>> print(len(indexes))  # Output: 3
         """
-        if self.buffer_enabled:  # select images from buffer
+        if self.buffer_enabled:
             return random.choices(list(self.dataset.buffer), k=self.n - 1)
-        else:  # select any images
+        else:
             return [random.randint(0, len(self.dataset) - 1) for _ in range(self.n - 1)]
 
     def _mix_transform(self, labels: dict[str, Any]) -> dict[str, Any]:
@@ -550,7 +550,7 @@ class Mosaic(BaseMixTransform):
         assert len(labels.get("mix_labels", [])), "There are no other images for mosaic augment."
         return (
             self._mosaic3(labels) if self.n == 3 else self._mosaic4(labels) if self.n == 4 else self._mosaic9(labels)
-        )  # This code is modified for mosaic3 method.
+        )
 
     def _mosaic3(self, labels: dict[str, Any]) -> dict[str, Any]:
         """Create a 1x3 image mosaic by combining three images.
@@ -582,27 +582,27 @@ class Mosaic(BaseMixTransform):
         s = self.imgsz
         for i in range(3):
             labels_patch = labels if i == 0 else labels["mix_labels"][i - 1]
-            # Load image
+
             img = labels_patch["img"]
             h, w = labels_patch.pop("resized_shape")
 
-            # Place img in img3
-            if i == 0:  # center
-                img3 = np.full((s * 3, s * 3, img.shape[2]), 114, dtype=np.uint8)  # base image with 3 tiles
+
+            if i == 0:
+                img3 = np.full((s * 3, s * 3, img.shape[2]), 114, dtype=np.uint8)
                 h0, w0 = h, w
-                c = s, s, s + w, s + h  # xmin, ymin, xmax, ymax (base) coordinates
-            elif i == 1:  # right
+                c = s, s, s + w, s + h
+            elif i == 1:
                 c = s + w0, s, s + w0 + w, s + h
-            elif i == 2:  # left
+            elif i == 2:
                 c = s - w, s + h0 - h, s, s + h0
 
             padw, padh = c[:2]
-            x1, y1, x2, y2 = (max(x, 0) for x in c)  # allocate coordinates
+            x1, y1, x2, y2 = (max(x, 0) for x in c)
 
-            img3[y1:y2, x1:x2] = img[y1 - padh :, x1 - padw :]  # img3[ymin:ymax, xmin:xmax]
-            # hp, wp = h, w  # height, width previous for next iteration
+            img3[y1:y2, x1:x2] = img[y1 - padh :, x1 - padw :]
 
-            # Labels assuming imgsz*2 mosaic size
+
+
             labels_patch = self._update_labels(labels_patch, padw + self.border[0], padh + self.border[1])
             mosaic_labels.append(labels_patch)
         final_labels = self._cat_labels(mosaic_labels)
@@ -636,29 +636,29 @@ class Mosaic(BaseMixTransform):
         """
         mosaic_labels = []
         s = self.imgsz
-        yc, xc = (int(random.uniform(-x, 2 * s + x)) for x in self.border)  # mosaic center x, y
+        yc, xc = (int(random.uniform(-x, 2 * s + x)) for x in self.border)
         for i in range(4):
             labels_patch = labels if i == 0 else labels["mix_labels"][i - 1]
-            # Load image
+
             img = labels_patch["img"]
             h, w = labels_patch.pop("resized_shape")
 
-            # Place img in img4
-            if i == 0:  # top left
-                img4 = np.full((s * 2, s * 2, img.shape[2]), 114, dtype=np.uint8)  # base image with 4 tiles
-                x1a, y1a, x2a, y2a = max(xc - w, 0), max(yc - h, 0), xc, yc  # xmin, ymin, xmax, ymax (large image)
-                x1b, y1b, x2b, y2b = w - (x2a - x1a), h - (y2a - y1a), w, h  # xmin, ymin, xmax, ymax (small image)
-            elif i == 1:  # top right
+
+            if i == 0:
+                img4 = np.full((s * 2, s * 2, img.shape[2]), 114, dtype=np.uint8)
+                x1a, y1a, x2a, y2a = max(xc - w, 0), max(yc - h, 0), xc, yc
+                x1b, y1b, x2b, y2b = w - (x2a - x1a), h - (y2a - y1a), w, h
+            elif i == 1:
                 x1a, y1a, x2a, y2a = xc, max(yc - h, 0), min(xc + w, s * 2), yc
                 x1b, y1b, x2b, y2b = 0, h - (y2a - y1a), min(w, x2a - x1a), h
-            elif i == 2:  # bottom left
+            elif i == 2:
                 x1a, y1a, x2a, y2a = max(xc - w, 0), yc, xc, min(s * 2, yc + h)
                 x1b, y1b, x2b, y2b = w - (x2a - x1a), 0, w, min(y2a - y1a, h)
-            elif i == 3:  # bottom right
+            elif i == 3:
                 x1a, y1a, x2a, y2a = xc, yc, min(xc + w, s * 2), min(s * 2, yc + h)
                 x1b, y1b, x2b, y2b = 0, 0, min(w, x2a - x1a), min(y2a - y1a, h)
 
-            img4[y1a:y2a, x1a:x2a] = img[y1b:y2b, x1b:x2b]  # img4[ymin:ymax, xmin:xmax]
+            img4[y1a:y2a, x1a:x2a] = img[y1b:y2b, x1b:x2b]
             padw = x1a - x1b
             padh = y1a - y1b
 
@@ -696,43 +696,43 @@ class Mosaic(BaseMixTransform):
         """
         mosaic_labels = []
         s = self.imgsz
-        hp, wp = -1, -1  # height, width previous
+        hp, wp = -1, -1
         for i in range(9):
             labels_patch = labels if i == 0 else labels["mix_labels"][i - 1]
-            # Load image
+
             img = labels_patch["img"]
             h, w = labels_patch.pop("resized_shape")
 
-            # Place img in img9
-            if i == 0:  # center
-                img9 = np.full((s * 3, s * 3, img.shape[2]), 114, dtype=np.uint8)  # base image with 4 tiles
+
+            if i == 0:
+                img9 = np.full((s * 3, s * 3, img.shape[2]), 114, dtype=np.uint8)
                 h0, w0 = h, w
-                c = s, s, s + w, s + h  # xmin, ymin, xmax, ymax (base) coordinates
-            elif i == 1:  # top
+                c = s, s, s + w, s + h
+            elif i == 1:
                 c = s, s - h, s + w, s
-            elif i == 2:  # top right
+            elif i == 2:
                 c = s + wp, s - h, s + wp + w, s
-            elif i == 3:  # right
+            elif i == 3:
                 c = s + w0, s, s + w0 + w, s + h
-            elif i == 4:  # bottom right
+            elif i == 4:
                 c = s + w0, s + hp, s + w0 + w, s + hp + h
-            elif i == 5:  # bottom
+            elif i == 5:
                 c = s + w0 - w, s + h0, s + w0, s + h0 + h
-            elif i == 6:  # bottom left
+            elif i == 6:
                 c = s + w0 - wp - w, s + h0, s + w0 - wp, s + h0 + h
-            elif i == 7:  # left
+            elif i == 7:
                 c = s - w, s + h0 - h, s, s + h0
-            elif i == 8:  # top left
+            elif i == 8:
                 c = s - w, s + h0 - hp - h, s, s + h0 - hp
 
             padw, padh = c[:2]
-            x1, y1, x2, y2 = (max(x, 0) for x in c)  # allocate coordinates
+            x1, y1, x2, y2 = (max(x, 0) for x in c)
 
-            # Image
-            img9[y1:y2, x1:x2] = img[y1 - padh :, x1 - padw :]  # img9[ymin:ymax, xmin:xmax]
-            hp, wp = h, w  # height, width previous for next iteration
 
-            # Labels assuming imgsz*2 mosaic size
+            img9[y1:y2, x1:x2] = img[y1 - padh :, x1 - padw :]
+            hp, wp = h, w
+
+
             labels_patch = self._update_labels(labels_patch, padw + self.border[0], padh + self.border[1])
             mosaic_labels.append(labels_patch)
         final_labels = self._cat_labels(mosaic_labels)
@@ -796,11 +796,11 @@ class Mosaic(BaseMixTransform):
             return {}
         cls = []
         instances = []
-        imgsz = self.imgsz * 2  # mosaic imgsz
+        imgsz = self.imgsz * 2
         for labels in mosaic_labels:
             cls.append(labels["cls"])
             instances.append(labels["instances"])
-        # Final labels
+
         final_labels = {
             "im_file": mosaic_labels[0]["im_file"],
             "ori_shape": mosaic_labels[0]["ori_shape"],
@@ -867,7 +867,7 @@ class MixUp(BaseMixTransform):
             >>> mixer = MixUp(dataset)
             >>> mixed_labels = mixer._mix_transform(labels)
         """
-        r = np.random.beta(32.0, 32.0)  # mixup ratio, alpha=beta=32.0
+        r = np.random.beta(32.0, 32.0)
         labels2 = labels["mix_labels"][0]
         labels["img"] = (labels["img"] * r + labels2["img"] * (1 - r)).astype(np.uint8)
         labels["instances"] = Instances.concatenate([labels["instances"], labels2["instances"]], axis=0)
@@ -923,18 +923,18 @@ class CutMix(BaseMixTransform):
         Returns:
             (tuple[int]): (x1, y1, x2, y2) coordinates of the bounding box.
         """
-        # Sample mixing ratio from Beta distribution
+
         lam = np.random.beta(self.beta, self.beta)
 
         cut_ratio = np.sqrt(1.0 - lam)
         cut_w = int(width * cut_ratio)
         cut_h = int(height * cut_ratio)
 
-        # Random center
+
         cx = np.random.randint(width)
         cy = np.random.randint(height)
 
-        # Bounding box coordinates
+
         x1 = np.clip(cx - cut_w // 2, 0, width)
         y1 = np.clip(cy - cut_h // 2, 0, height)
         x2 = np.clip(cx + cut_w // 2, 0, width)
@@ -955,17 +955,17 @@ class CutMix(BaseMixTransform):
             >>> cutter = CutMix(dataset)
             >>> mixed_labels = cutter._mix_transform(labels)
         """
-        # Get a random second image
+
         h, w = labels["img"].shape[:2]
 
         cut_areas = np.asarray([self._rand_bbox(w, h) for _ in range(self.num_areas)], dtype=np.float32)
-        ioa1 = bbox_ioa(cut_areas, labels["instances"].bboxes)  # (self.num_areas, num_boxes)
+        ioa1 = bbox_ioa(cut_areas, labels["instances"].bboxes)
         idx = np.nonzero(ioa1.sum(axis=1) <= 0)[0]
         if len(idx) == 0:
             return labels
 
         labels2 = labels.pop("mix_labels")[0]
-        area = cut_areas[np.random.choice(idx)]  # randomly select one
+        area = cut_areas[np.random.choice(idx)]
         ioa2 = bbox_ioa(area[None], labels2["instances"].bboxes).squeeze(0)
         indexes2 = np.nonzero(ioa2 >= (0.01 if len(labels["instances"].segments) else 0.1))[0]
         if len(indexes2) == 0:
@@ -975,11 +975,11 @@ class CutMix(BaseMixTransform):
         instances2.convert_bbox("xyxy")
         instances2.denormalize(w, h)
 
-        # Apply CutMix
+
         x1, y1, x2, y2 = area.astype(np.int32)
         labels["img"][y1:y2, x1:x2] = labels2["img"][y1:y2, x1:x2]
 
-        # Restrain instances2 to the random bounding border
+
         instances2.add_padding(-x1, -y1)
         instances2.clip(x2 - x1, y2 - y1)
         instances2.add_padding(x1, y1)
@@ -1052,7 +1052,7 @@ class RandomPerspective:
         self.scale = scale
         self.shear = shear
         self.perspective = perspective
-        self.border = border  # mosaic border
+        self.border = border
         self.pre_transform = pre_transform
 
     def affine_transform(self, img: np.ndarray, border: tuple[int, int]) -> tuple[np.ndarray, np.ndarray, float]:
@@ -1077,42 +1077,42 @@ class RandomPerspective:
             >>> border = (10, 10)
             >>> transformed_img, matrix, scale = affine_transform(img, border)
         """
-        # Center
+
         C = np.eye(3, dtype=np.float32)
 
-        C[0, 2] = -img.shape[1] / 2  # x translation (pixels)
-        C[1, 2] = -img.shape[0] / 2  # y translation (pixels)
+        C[0, 2] = -img.shape[1] / 2
+        C[1, 2] = -img.shape[0] / 2
 
-        # Perspective
+
         P = np.eye(3, dtype=np.float32)
-        P[2, 0] = random.uniform(-self.perspective, self.perspective)  # x perspective (about y)
-        P[2, 1] = random.uniform(-self.perspective, self.perspective)  # y perspective (about x)
+        P[2, 0] = random.uniform(-self.perspective, self.perspective)
+        P[2, 1] = random.uniform(-self.perspective, self.perspective)
 
-        # Rotation and Scale
+
         R = np.eye(3, dtype=np.float32)
         a = random.uniform(-self.degrees, self.degrees)
-        # a += random.choice([-180, -90, 0, 90])  # add 90deg rotations to small rotations
+
         s = random.uniform(1 - self.scale, 1 + self.scale)
-        # s = 2 ** random.uniform(-scale, scale)
+
         R[:2] = cv2.getRotationMatrix2D(angle=a, center=(0, 0), scale=s)
 
-        # Shear
+
         S = np.eye(3, dtype=np.float32)
-        S[0, 1] = math.tan(random.uniform(-self.shear, self.shear) * math.pi / 180)  # x shear (deg)
-        S[1, 0] = math.tan(random.uniform(-self.shear, self.shear) * math.pi / 180)  # y shear (deg)
+        S[0, 1] = math.tan(random.uniform(-self.shear, self.shear) * math.pi / 180)
+        S[1, 0] = math.tan(random.uniform(-self.shear, self.shear) * math.pi / 180)
 
-        # Translation
+
         T = np.eye(3, dtype=np.float32)
-        T[0, 2] = random.uniform(0.5 - self.translate, 0.5 + self.translate) * self.size[0]  # x translation (pixels)
-        T[1, 2] = random.uniform(0.5 - self.translate, 0.5 + self.translate) * self.size[1]  # y translation (pixels)
+        T[0, 2] = random.uniform(0.5 - self.translate, 0.5 + self.translate) * self.size[0]
+        T[1, 2] = random.uniform(0.5 - self.translate, 0.5 + self.translate) * self.size[1]
 
-        # Combined rotation matrix
-        M = T @ S @ R @ P @ C  # order of operations (right to left) is IMPORTANT
-        # Affine image
-        if (border[0] != 0) or (border[1] != 0) or (M != np.eye(3)).any():  # image changed
+
+        M = T @ S @ R @ P @ C
+
+        if (border[0] != 0) or (border[1] != 0) or (M != np.eye(3)).any():
             if self.perspective:
                 img = cv2.warpPerspective(img, M, dsize=self.size, borderValue=(114, 114, 114))
-            else:  # affine
+            else:
                 img = cv2.warpAffine(img, M[:2], dsize=self.size, borderValue=(114, 114, 114))
             if img.ndim == 2:
                 img = img[..., None]
@@ -1142,11 +1142,11 @@ class RandomPerspective:
             return bboxes
 
         xy = np.ones((n * 4, 3), dtype=bboxes.dtype)
-        xy[:, :2] = bboxes[:, [0, 1, 2, 3, 0, 3, 2, 1]].reshape(n * 4, 2)  # x1y1, x2y2, x1y2, x2y1
-        xy = xy @ M.T  # transform
-        xy = (xy[:, :2] / xy[:, 2:3] if self.perspective else xy[:, :2]).reshape(n, 8)  # perspective rescale or affine
+        xy[:, :2] = bboxes[:, [0, 1, 2, 3, 0, 3, 2, 1]].reshape(n * 4, 2)
+        xy = xy @ M.T
+        xy = (xy[:, :2] / xy[:, 2:3] if self.perspective else xy[:, :2]).reshape(n, 8)
 
-        # Create new boxes
+
         x = xy[:, [0, 2, 4, 6]]
         y = xy[:, [1, 3, 5, 7]]
         return np.concatenate((x.min(1), y.min(1), x.max(1), y.max(1)), dtype=bboxes.dtype).reshape(4, n).T
@@ -1178,7 +1178,7 @@ class RandomPerspective:
         xy = np.ones((n * num, 3), dtype=segments.dtype)
         segments = segments.reshape(-1, 2)
         xy[:, :2] = segments
-        xy = xy @ M.T  # transform
+        xy = xy @ M.T
         xy = xy[:, :2] / xy[:, 2:3]
         segments = xy.reshape(n, -1, 2)
         bboxes = np.stack([segment2box(xy, self.size[0], self.size[1]) for xy in segments], 0)
@@ -1213,8 +1213,8 @@ class RandomPerspective:
         xy = np.ones((n * nkpt, 3), dtype=keypoints.dtype)
         visible = keypoints[..., 2].reshape(n * nkpt, 1)
         xy[:, :2] = keypoints[..., :2].reshape(n * nkpt, 2)
-        xy = xy @ M.T  # transform
-        xy = xy[:, :2] / xy[:, 2:3]  # perspective rescale or affine
+        xy = xy @ M.T
+        xy = xy[:, :2] / xy[:, 2:3]
         out_mask = (xy[:, 0] < 0) | (xy[:, 1] < 0) | (xy[:, 0] > self.size[0]) | (xy[:, 1] > self.size[1])
         visible[out_mask] = 0
         return np.concatenate([xy, visible], axis=-1).reshape(n, nkpt, 3)
@@ -1257,38 +1257,38 @@ class RandomPerspective:
         """
         if self.pre_transform and "mosaic_border" not in labels:
             labels = self.pre_transform(labels)
-        labels.pop("ratio_pad", None)  # do not need ratio pad
+        labels.pop("ratio_pad", None)
 
         img = labels["img"]
         cls = labels["cls"]
         instances = labels.pop("instances")
-        # Make sure the coord formats are right
+
         instances.convert_bbox(format="xyxy")
         instances.denormalize(*img.shape[:2][::-1])
 
         border = labels.pop("mosaic_border", self.border)
-        self.size = img.shape[1] + border[1] * 2, img.shape[0] + border[0] * 2  # w, h
-        # M is affine matrix
-        # Scale for func:`box_candidates`
+        self.size = img.shape[1] + border[1] * 2, img.shape[0] + border[0] * 2
+
+
         img, M, scale = self.affine_transform(img, border)
 
         bboxes = self.apply_bboxes(instances.bboxes, M)
 
         segments = instances.segments
         keypoints = instances.keypoints
-        # Update bboxes if there are segments.
+
         if len(segments):
             bboxes, segments = self.apply_segments(segments, M)
 
         if keypoints is not None:
             keypoints = self.apply_keypoints(keypoints, M)
         new_instances = Instances(bboxes, segments, keypoints, bbox_format="xyxy", normalized=False)
-        # Clip
+
         new_instances.clip(*self.size)
 
-        # Filter instances
+
         instances.scale(scale_w=scale, scale_h=scale, bbox_only=True)
-        # Make the bboxes have the same scale with new_bboxes
+
         i = self.box_candidates(
             box1=instances.bboxes.T, box2=new_instances.bboxes.T, area_thr=0.01 if len(segments) else 0.10
         )
@@ -1339,8 +1339,8 @@ class RandomPerspective:
         """
         w1, h1 = box1[2] - box1[0], box1[3] - box1[1]
         w2, h2 = box2[2] - box2[0], box2[3] - box2[1]
-        ar = np.maximum(w2 / (h2 + eps), h2 / (w2 + eps))  # aspect ratio
-        return (w2 > wh_thr) & (h2 > wh_thr) & (w2 * h2 / (w1 * h1 + eps) > area_thr) & (ar < ar_thr)  # candidates
+        ar = np.maximum(w2 / (h2 + eps), h2 / (w2 + eps))
+        return (w2 > wh_thr) & (h2 > wh_thr) & (w2 * h2 / (w1 * h1 + eps) > area_thr) & (ar < ar_thr)
 
 
 class RandomHSV:
@@ -1400,22 +1400,22 @@ class RandomHSV:
             >>> augmented_img = labels["img"]
         """
         img = labels["img"]
-        if img.shape[-1] != 3:  # only apply to RGB images
+        if img.shape[-1] != 3:
             return labels
         if self.hgain or self.sgain or self.vgain:
-            dtype = img.dtype  # uint8
+            dtype = img.dtype
 
-            r = np.random.uniform(-1, 1, 3) * [self.hgain, self.sgain, self.vgain]  # random gains
+            r = np.random.uniform(-1, 1, 3) * [self.hgain, self.sgain, self.vgain]
             x = np.arange(0, 256, dtype=r.dtype)
-            # lut_hue = ((x * (r[0] + 1)) % 180).astype(dtype)   # original hue implementation from ultralytics<=8.3.78
+
             lut_hue = ((x + r[0] * 180) % 180).astype(dtype)
             lut_sat = np.clip(x * (r[1] + 1), 0, 255).astype(dtype)
             lut_val = np.clip(x * (r[2] + 1), 0, 255).astype(dtype)
-            lut_sat[0] = 0  # prevent pure white changing color, introduced in 8.3.79
+            lut_sat[0] = 0
 
             hue, sat, val = cv2.split(cv2.cvtColor(img, cv2.COLOR_BGR2HSV))
             im_hsv = cv2.merge((cv2.LUT(hue, lut_hue), cv2.LUT(sat, lut_sat), cv2.LUT(val, lut_val)))
-            cv2.cvtColor(im_hsv, cv2.COLOR_HSV2BGR, dst=img)  # no return needed
+            cv2.cvtColor(im_hsv, cv2.COLOR_HSV2BGR, dst=img)
         return labels
 
 
@@ -1490,7 +1490,7 @@ class RandomFlip:
         h = 1 if instances.normalized else h
         w = 1 if instances.normalized else w
 
-        # WARNING: two separate if and calls to random.random() intentional for reproducibility with older versions
+
         if self.direction == "vertical" and random.random() < self.p:
             img = np.flipud(img)
             instances.flipud(h)
@@ -1561,7 +1561,7 @@ class LetterBox:
         self.scale_fill = scale_fill
         self.scaleup = scaleup
         self.stride = stride
-        self.center = center  # Put the image in the middle or top-left
+        self.center = center
         self.padding_value = padding_value
         self.interpolation = interpolation
 
@@ -1590,32 +1590,32 @@ class LetterBox:
         if labels is None:
             labels = {}
         img = labels.get("img") if image is None else image
-        shape = img.shape[:2]  # current shape [height, width]
+        shape = img.shape[:2]
         new_shape = labels.pop("rect_shape", self.new_shape)
         if isinstance(new_shape, int):
             new_shape = (new_shape, new_shape)
 
-        # Scale ratio (new / old)
+
         r = min(new_shape[0] / shape[0], new_shape[1] / shape[1])
-        if not self.scaleup:  # only scale down, do not scale up (for better val mAP)
+        if not self.scaleup:
             r = min(r, 1.0)
 
-        # Compute padding
-        ratio = r, r  # width, height ratios
+
+        ratio = r, r
         new_unpad = round(shape[1] * r), round(shape[0] * r)
-        dw, dh = new_shape[1] - new_unpad[0], new_shape[0] - new_unpad[1]  # wh padding
-        if self.auto:  # minimum rectangle
-            dw, dh = np.mod(dw, self.stride), np.mod(dh, self.stride)  # wh padding
-        elif self.scale_fill:  # stretch
+        dw, dh = new_shape[1] - new_unpad[0], new_shape[0] - new_unpad[1]
+        if self.auto:
+            dw, dh = np.mod(dw, self.stride), np.mod(dh, self.stride)
+        elif self.scale_fill:
             dw, dh = 0.0, 0.0
             new_unpad = (new_shape[1], new_shape[0])
-            ratio = new_shape[1] / shape[1], new_shape[0] / shape[0]  # width, height ratios
+            ratio = new_shape[1] / shape[1], new_shape[0] / shape[0]
 
         if self.center:
-            dw /= 2  # divide padding into 2 sides
+            dw /= 2
             dh /= 2
 
-        if shape[::-1] != new_unpad:  # resize
+        if shape[::-1] != new_unpad:
             img = cv2.resize(img, new_unpad, interpolation=self.interpolation)
             if img.ndim == 2:
                 img = img[..., None]
@@ -1627,13 +1627,13 @@ class LetterBox:
             img = cv2.copyMakeBorder(
                 img, top, bottom, left, right, cv2.BORDER_CONSTANT, value=(self.padding_value,) * 3
             )
-        else:  # multispectral
+        else:
             pad_img = np.full((h + top + bottom, w + left + right, c), fill_value=self.padding_value, dtype=img.dtype)
             pad_img[top : top + h, left : left + w] = img
             img = pad_img
 
         if labels.get("ratio_pad"):
-            labels["ratio_pad"] = (labels["ratio_pad"], (left, top))  # for evaluation
+            labels["ratio_pad"] = (labels["ratio_pad"], (left, top))
 
         if len(labels):
             labels = self._update_labels(labels, ratio, left, top)
@@ -1714,12 +1714,12 @@ class CopyPaste(BaseMixTransform):
         if self.mode == "flip":
             return self._transform(labels)
 
-        # Get index of one or three other images
+
         indexes = self.get_indexes()
         if isinstance(indexes, int):
             indexes = [indexes]
 
-        # Get images information will be used for Mosaic or MixUp
+
         mix_labels = [self.dataset.get_image_and_label(i) for i in indexes]
 
         if self.pre_transform is not None:
@@ -1727,9 +1727,9 @@ class CopyPaste(BaseMixTransform):
                 mix_labels[i] = self.pre_transform(data)
         labels["mix_labels"] = mix_labels
 
-        # Update cls and texts
+
         labels = self._update_label_text(labels)
-        # Mosaic or MixUp
+
         labels = self._mix_transform(labels)
         labels.pop("mix_labels", None)
         return labels
@@ -1738,7 +1738,7 @@ class CopyPaste(BaseMixTransform):
         """Apply Copy-Paste augmentation to combine objects from another image into the current image."""
         im = labels1["img"]
         if "mosaic_border" not in labels1:
-            im = im.copy()  # avoid modifying original non-mosaic image
+            im = im.copy()
         cls = labels1["cls"]
         h, w = im.shape[:2]
         instances = labels1.pop("instances")
@@ -1750,8 +1750,8 @@ class CopyPaste(BaseMixTransform):
         if instances2 is None:
             instances2 = deepcopy(instances)
             instances2.fliplr(w)
-        ioa = bbox_ioa(instances2.bboxes, instances.bboxes)  # intersection over area, (N, M)
-        indexes = np.nonzero((ioa < 0.30).all(1))[0]  # (N, )
+        ioa = bbox_ioa(instances2.bboxes, instances.bboxes)
+        indexes = np.nonzero((ioa < 0.30).all(1))[0]
         n = len(indexes)
         sorted_idx = np.argsort(ioa.max(1)[indexes])
         indexes = indexes[sorted_idx]
@@ -1760,8 +1760,8 @@ class CopyPaste(BaseMixTransform):
             instances = Instances.concatenate((instances, instances2[[j]]), axis=0)
             cv2.drawContours(im_new, instances2.segments[[j]].astype(np.int32), -1, 1, cv2.FILLED)
 
-        result = labels2.get("img", cv2.flip(im, 1))  # augment segments
-        if result.ndim == 2:  # cv2.flip would eliminate the last dimension for grayscale images
+        result = labels2.get("img", cv2.flip(im, 1))
+        if result.ndim == 2:
             result = result[..., None]
         i = im_new.astype(bool)
         im[i] = result[i]
@@ -1819,12 +1819,12 @@ class Albumentations:
         try:
             import os
 
-            os.environ["NO_ALBUMENTATIONS_UPDATE"] = "1"  # suppress Albumentations upgrade message
+            os.environ["NO_ALBUMENTATIONS_UPDATE"] = "1"
             import albumentations as A
 
-            check_version(A.__version__, "1.0.3", hard=True)  # version requirement
+            check_version(A.__version__, "1.0.3", hard=True)
 
-            # List of possible spatial transforms
+
             spatial_transforms = {
                 "Affine",
                 "BBoxSafeRandomCrop",
@@ -1866,9 +1866,9 @@ class Albumentations:
                 "Transpose",
                 "VerticalFlip",
                 "XYMasking",
-            }  # from https://albumentations.ai/docs/getting_started/transforms_and_targets/#spatial-level-transforms
+            }
 
-            # Transforms, use custom transforms if provided, otherwise use defaults
+
             T = (
                 [
                     A.Blur(p=0.01),
@@ -1883,7 +1883,7 @@ class Albumentations:
                 else transforms
             )
 
-            # Compose transforms
+
             self.contains_spatial = any(transform.__class__.__name__ in spatial_transforms for transform in T)
             self.transform = (
                 A.Compose(T, bbox_params=A.BboxParams(format="yolo", label_fields=["class_labels"]))
@@ -1891,10 +1891,10 @@ class Albumentations:
                 else A.Compose(T)
             )
             if hasattr(self.transform, "set_random_seed"):
-                # Required for deterministic transforms in albumentations>=1.4.21
+
                 self.transform.set_random_seed(torch.initial_seed())
             LOGGER.info(prefix + ", ".join(f"{x}".replace("always_apply=False, ", "") for x in T if x.p))
-        except ImportError:  # package not installed, skip
+        except ImportError:
             pass
         except Exception as e:
             LOGGER.info(f"{prefix}{e}")
@@ -1933,7 +1933,7 @@ class Albumentations:
             return labels
 
         im = labels["img"]
-        if im.shape[2] != 3:  # Only apply Albumentation on 3-channel images
+        if im.shape[2] != 3:
             return labels
 
         if self.contains_spatial:
@@ -1942,15 +1942,15 @@ class Albumentations:
                 labels["instances"].convert_bbox("xywh")
                 labels["instances"].normalize(*im.shape[:2][::-1])
                 bboxes = labels["instances"].bboxes
-                # TODO: add supports of segments and keypoints
-                new = self.transform(image=im, bboxes=bboxes, class_labels=cls)  # transformed
-                if len(new["class_labels"]) > 0:  # skip update if no bbox in new im
+
+                new = self.transform(image=im, bboxes=bboxes, class_labels=cls)
+                if len(new["class_labels"]) > 0:
                     labels["img"] = new["image"]
                     labels["cls"] = np.array(new["class_labels"]).reshape(-1, 1)
                     bboxes = np.array(new["bboxes"], dtype=np.float32)
                 labels["instances"].update(bboxes=bboxes)
         else:
-            labels["img"] = self.transform(image=labels["img"])["image"]  # transformed
+            labels["img"] = self.transform(image=labels["img"])["image"]
 
         return labels
 
@@ -2014,12 +2014,12 @@ class Format:
         """
         self.bbox_format = bbox_format
         self.normalize = normalize
-        self.return_mask = return_mask  # set False when training detection only
+        self.return_mask = return_mask
         self.return_keypoint = return_keypoint
         self.return_obb = return_obb
         self.mask_ratio = mask_ratio
         self.mask_overlap = mask_overlap
-        self.batch_idx = batch_idx  # keep the batch indexes
+        self.batch_idx = batch_idx
         self.bgr = bgr
 
     def __call__(self, labels: dict[str, Any]) -> dict[str, Any]:
@@ -2064,16 +2064,16 @@ class Format:
                 masks = torch.from_numpy(masks)
                 cls_tensor = torch.from_numpy(cls.squeeze(1))
                 if self.mask_overlap:
-                    sem_masks = cls_tensor[masks[0].long() - 1]  # (H, W) from (1, H, W) instance indices
+                    sem_masks = cls_tensor[masks[0].long() - 1]
                 else:
-                    # Create sem_masks consistent with mask_overlap=True
-                    sem_masks = (masks * cls_tensor[:, None, None]).max(0).values  # (H, W) from (N, H, W) binary
-                    overlap = masks.sum(dim=0) > 1  # (H, W)
+
+                    sem_masks = (masks * cls_tensor[:, None, None]).max(0).values
+                    overlap = masks.sum(dim=0) > 1
                     if overlap.any():
                         weights = masks.sum(axis=(1, 2))
-                        weighted_masks = masks * weights[:, None, None]  # (N, H, W)
-                        weighted_masks[masks == 0] = weights.max() + 1  # handle background
-                        smallest_idx = weighted_masks.argmin(dim=0)  # (H, W)
+                        weighted_masks = masks * weights[:, None, None]
+                        weighted_masks[masks == 0] = weights.max() + 1
+                        smallest_idx = weighted_masks.argmin(dim=0)
                         sem_masks[overlap] = cls_tensor[smallest_idx[overlap]]
             else:
                 masks = torch.zeros(
@@ -2096,11 +2096,11 @@ class Format:
             labels["bboxes"] = (
                 xyxyxyxy2xywhr(torch.from_numpy(instances.segments)) if len(instances.segments) else torch.zeros((0, 5))
             )
-        # NOTE: need to normalize obb in xywhr format for width-height consistency
+
         if self.normalize:
             labels["bboxes"][:, [0, 2]] /= w
             labels["bboxes"][:, [1, 3]] /= h
-        # Then we can use collate_fn
+
         if self.batch_idx:
             labels["batch_idx"] = torch.zeros(nl)
         return labels
@@ -2159,7 +2159,7 @@ class Format:
         segments = instances.segments
         if self.mask_overlap:
             masks, sorted_idx = polygons2masks_overlap((h, w), segments, downsample_ratio=self.mask_ratio)
-            masks = masks[None]  # (640, 640) -> (1, 640, 640)
+            masks = masks[None]
             instances = instances[sorted_idx]
             cls = cls[sorted_idx]
         else:
@@ -2191,9 +2191,9 @@ class LoadVisualPrompt:
         Returns:
             (torch.Tensor): Binary masks with shape (N, h, w).
         """
-        x1, y1, x2, y2 = torch.chunk(boxes[:, :, None], 4, 1)  # x1 shape(n,1,1)
-        r = torch.arange(w)[None, None, :]  # rows shape(1,1,w)
-        c = torch.arange(h)[None, :, None]  # cols shape(1,h,1)
+        x1, y1, x2, y2 = torch.chunk(boxes[:, :, None], 4, 1)
+        r = torch.arange(w)[None, None, :]
+        c = torch.arange(h)[None, :, None]
 
         return (r >= x1) * (r < x2) * (c >= y1) * (c < y2)
 
@@ -2210,7 +2210,7 @@ class LoadVisualPrompt:
         bboxes, masks = None, None
         if "bboxes" in labels:
             bboxes = labels["bboxes"]
-            bboxes = xywh2xyxy(bboxes) * torch.tensor(imgsz)[[1, 0, 1, 0]]  # denormalize boxes
+            bboxes = xywh2xyxy(bboxes) * torch.tensor(imgsz)[[1, 0, 1, 0]]
 
         cls = labels["cls"].squeeze(-1).to(torch.int)
         visuals = self.get_visuals(cls, imgsz, bboxes=bboxes, masks=masks)
@@ -2246,18 +2246,18 @@ class LoadVisualPrompt:
             masks = self.make_mask(bboxes, *masksz).float()
         elif masks is not None:
             if isinstance(masks, np.ndarray):
-                masks = torch.from_numpy(masks)  # (N, H, W)
+                masks = torch.from_numpy(masks)
             masks = F.interpolate(masks.unsqueeze(1), masksz, mode="nearest").squeeze(1).float()
         else:
             raise ValueError("LoadVisualPrompt must have bboxes or masks in the label")
         if not isinstance(category, torch.Tensor):
             category = torch.tensor(category, dtype=torch.int)
         cls_unique, inverse_indices = torch.unique(category, sorted=True, return_inverse=True)
-        # NOTE: `cls` indices from RandomLoadText should be continuous.
-        # if len(cls_unique):
-        #     assert len(cls_unique) == cls_unique[-1] + 1, (
-        #         f"Expected a continuous range of class indices, but got {cls_unique}"
-        #     )
+
+
+
+
+
         visuals = torch.zeros(cls_unique.shape[0], *masksz)
         for idx, mask in zip(inverse_indices, masks):
             visuals[idx] = torch.logical_or(visuals[idx], mask)
@@ -2351,8 +2351,8 @@ class RandomLoadText:
         neg_labels = random.sample(neg_labels, k=neg_samples)
 
         sampled_labels = pos_labels + neg_labels
-        # Randomness
-        # random.shuffle(sampled_labels)
+
+
 
         label2ids = {label: i for i, label in enumerate(sampled_labels)}
         valid_idx = np.zeros(len(labels["instances"]), dtype=bool)
@@ -2365,7 +2365,7 @@ class RandomLoadText:
         labels["instances"] = labels["instances"][valid_idx]
         labels["cls"] = np.array(new_cls)
 
-        # Randomly select one prompt when there's more than one prompts
+
         texts = []
         for label in sampled_labels:
             prompts = class_texts[label]
@@ -2436,11 +2436,11 @@ def v8_transforms(dataset, imgsz: int, hyp: IterableSimpleNamespace, stretch: bo
                 mode=hyp.copy_paste_mode,
             )
         )
-    flip_idx = dataset.data.get("flip_idx", [])  # for keypoints augmentation
+    flip_idx = dataset.data.get("flip_idx", [])
     if dataset.use_keypoints:
         kpt_shape = dataset.data.get("kpt_shape", None)
         if len(flip_idx) == 0 and (hyp.fliplr > 0.0 or hyp.flipud > 0.0):
-            hyp.fliplr = hyp.flipud = 0.0  # both fliplr and flipud require flip_idx
+            hyp.fliplr = hyp.flipud = 0.0
             LOGGER.warning("No 'flip_idx' array defined in data.yaml, disabling 'fliplr' and 'flipud' augmentations.")
         elif flip_idx and (len(flip_idx) != kpt_shape[0]):
             raise ValueError(f"data.yaml flip_idx={flip_idx} length must be equal to kpt_shape[0]={kpt_shape[0]}")
@@ -2455,10 +2455,10 @@ def v8_transforms(dataset, imgsz: int, hyp: IterableSimpleNamespace, stretch: bo
             RandomFlip(direction="vertical", p=hyp.flipud, flip_idx=flip_idx),
             RandomFlip(direction="horizontal", p=hyp.fliplr, flip_idx=flip_idx),
         ]
-    )  # transforms
+    )
 
 
-# Classification augmentations -----------------------------------------------------------------------------------------
+
 def classify_transforms(
     size: tuple[int, int] | int = 224,
     mean: tuple[float, float, float] = DEFAULT_MEAN,
@@ -2488,7 +2488,7 @@ def classify_transforms(
         >>> img = Image.open("path/to/image.jpg")
         >>> transformed_img = transforms(img)
     """
-    import torchvision.transforms as T  # scope for faster 'import ultralytics'
+    import torchvision.transforms as T
 
     scale_size = size if isinstance(size, (tuple, list)) and len(size) == 2 else (size, size)
 
@@ -2497,18 +2497,18 @@ def classify_transforms(
             "'crop_fraction' arg of classify_transforms is deprecated, will be removed in a future version."
         )
 
-    # Aspect ratio is preserved, crops center within image, no borders are added, image is lost
+
     if scale_size[0] == scale_size[1]:
-        # Simple case, use torchvision built-in Resize with the shortest edge mode (scalar size arg)
+
         tfl = [T.Resize(scale_size[0], interpolation=getattr(T.InterpolationMode, interpolation))]
     else:
-        # Resize the shortest edge to matching target dim for non-square target
+
         tfl = [T.Resize(scale_size)]
     tfl += [T.CenterCrop(size), T.ToTensor(), T.Normalize(mean=torch.tensor(mean), std=torch.tensor(std))]
     return T.Compose(tfl)
 
 
-# Classification training augmentations --------------------------------------------------------------------------------
+
 def classify_augmentations(
     size: int = 224,
     mean: tuple[float, float, float] = DEFAULT_MEAN,
@@ -2518,9 +2518,9 @@ def classify_augmentations(
     hflip: float = 0.5,
     vflip: float = 0.0,
     auto_augment: str | None = None,
-    hsv_h: float = 0.015,  # image HSV-Hue augmentation (fraction)
-    hsv_s: float = 0.4,  # image HSV-Saturation augmentation (fraction)
-    hsv_v: float = 0.4,  # image HSV-Value augmentation (fraction)
+    hsv_h: float = 0.015,
+    hsv_s: float = 0.4,
+    hsv_v: float = 0.4,
     force_color_jitter: bool = False,
     erasing: float = 0.0,
     interpolation: str = "BILINEAR",
@@ -2553,13 +2553,13 @@ def classify_augmentations(
         >>> transforms = classify_augmentations(size=224, auto_augment="randaugment")
         >>> augmented_image = transforms(original_image)
     """
-    # Transforms to apply if Albumentations not installed
-    import torchvision.transforms as T  # scope for faster 'import ultralytics'
+
+    import torchvision.transforms as T
 
     if not isinstance(size, int):
         raise TypeError(f"classify_augmentations() size {size} must be integer, not (list, tuple)")
-    scale = tuple(scale or (0.08, 1.0))  # default imagenet scale range
-    ratio = tuple(ratio or (3.0 / 4.0, 4.0 / 3.0))  # default imagenet ratio range
+    scale = tuple(scale or (0.08, 1.0))
+    ratio = tuple(ratio or (3.0 / 4.0, 4.0 / 3.0))
     interpolation = getattr(T.InterpolationMode, interpolation)
     primary_tfl = [T.RandomResizedCrop(size, scale=scale, ratio=ratio, interpolation=interpolation)]
     if hflip > 0.0:
@@ -2571,8 +2571,8 @@ def classify_augmentations(
     disable_color_jitter = False
     if auto_augment:
         assert isinstance(auto_augment, str), f"Provided argument should be string, but got type {type(auto_augment)}"
-        # color jitter is typically disabled if AA/RA on,
-        # this allows override without breaking old hparm cfgs
+
+
         disable_color_jitter = not force_color_jitter
 
         if auto_augment == "randaugment":
@@ -2611,7 +2611,7 @@ def classify_augmentations(
     return T.Compose(primary_tfl + secondary_tfl + final_tfl)
 
 
-# NOTE: keep this class for backward compatibility
+
 class ClassifyLetterBox:
     """A class for resizing and padding images for classification tasks.
 
@@ -2649,8 +2649,8 @@ class ClassifyLetterBox:
         """
         super().__init__()
         self.h, self.w = (size, size) if isinstance(size, int) else size
-        self.auto = auto  # pass max size integer, automatically solve for short side using stride
-        self.stride = stride  # used with auto
+        self.auto = auto
+        self.stride = stride
 
     def __call__(self, im: np.ndarray) -> np.ndarray:
         """Resize and pad an image using the letterbox method.
@@ -2673,20 +2673,20 @@ class ClassifyLetterBox:
             (640, 640, 3)
         """
         imh, imw = im.shape[:2]
-        r = min(self.h / imh, self.w / imw)  # ratio of new/old dimensions
-        h, w = round(imh * r), round(imw * r)  # resized image dimensions
+        r = min(self.h / imh, self.w / imw)
+        h, w = round(imh * r), round(imw * r)
 
-        # Calculate padding dimensions
+
         hs, ws = (math.ceil(x / self.stride) * self.stride for x in (h, w)) if self.auto else (self.h, self.w)
         top, left = round((hs - h) / 2 - 0.1), round((ws - w) / 2 - 0.1)
 
-        # Create padded image
+
         im_out = np.full((hs, ws, 3), 114, dtype=im.dtype)
         im_out[top : top + h, left : left + w] = cv2.resize(im, (w, h), interpolation=cv2.INTER_LINEAR)
         return im_out
 
 
-# NOTE: keep this class for backward compatibility
+
 class CenterCrop:
     """Apply center cropping to images for classification tasks.
 
@@ -2743,15 +2743,15 @@ class CenterCrop:
             >>> cropped_image = transform(image)
             >>> assert cropped_image.shape == (224, 224, 3)
         """
-        if isinstance(im, Image.Image):  # convert from PIL to numpy array if required
+        if isinstance(im, Image.Image):
             im = np.asarray(im)
         imh, imw = im.shape[:2]
-        m = min(imh, imw)  # min dimension
+        m = min(imh, imw)
         top, left = (imh - m) // 2, (imw - m) // 2
         return cv2.resize(im[top : top + m, left : left + m], (self.w, self.h), interpolation=cv2.INTER_LINEAR)
 
 
-# NOTE: keep this class for backward compatibility
+
 class ToTensor:
     """Convert an image from a numpy array to a PyTorch tensor.
 
@@ -2809,8 +2809,8 @@ class ToTensor:
             >>> print(tensor_img.shape, tensor_img.dtype)
             torch.Size([3, 640, 640]) torch.float16
         """
-        im = np.ascontiguousarray(im.transpose((2, 0, 1)))  # HWC to CHW -> contiguous
-        im = torch.from_numpy(im)  # to torch
-        im = im.half() if self.half else im.float()  # uint8 to fp16/32
-        im /= 255.0  # 0-255 to 0.0-1.0
+        im = np.ascontiguousarray(im.transpose((2, 0, 1)))
+        im = torch.from_numpy(im)
+        im = im.half() if self.half else im.float()
+        im /= 255.0
         return im

@@ -48,7 +48,7 @@ def test_mlflow_keep_run_active():
     run_name = "Test Run"
     os.environ["MLFLOW_RUN"] = run_name
 
-    # Test with MLFLOW_KEEP_RUN_ACTIVE=True
+
     os.environ["MLFLOW_KEEP_RUN_ACTIVE"] = "True"
     YOLO("yolo26n-cls.yaml").train(data="imagenet10", imgsz=32, epochs=1, plots=False, device="cpu")
     status = mlflow.active_run().info.status
@@ -56,13 +56,13 @@ def test_mlflow_keep_run_active():
 
     run_id = mlflow.active_run().info.run_id
 
-    # Test with MLFLOW_KEEP_RUN_ACTIVE=False
+
     os.environ["MLFLOW_KEEP_RUN_ACTIVE"] = "False"
     YOLO("yolo26n-cls.yaml").train(data="imagenet10", imgsz=32, epochs=1, plots=False, device="cpu")
     status = mlflow.get_run(run_id=run_id).info.status
     assert status == "FINISHED", "MLflow run should be ended when MLFLOW_KEEP_RUN_ACTIVE=False"
 
-    # Test with MLFLOW_KEEP_RUN_ACTIVE not set
+
     os.environ.pop("MLFLOW_KEEP_RUN_ACTIVE", None)
     YOLO("yolo26n-cls.yaml").train(data="imagenet10", imgsz=32, epochs=1, plots=False, device="cpu")
     status = mlflow.get_run(run_id=run_id).info.status
@@ -76,26 +76,26 @@ def test_triton(tmp_path):
     check_requirements("tritonclient[all]")
     from tritonclient.http import InferenceServerClient
 
-    # Create variables
-    model_name = "yolo"
-    triton_repo = tmp_path / "triton_repo"  # Triton repo path
-    triton_model = triton_repo / model_name  # Triton model path
 
-    # Export model to ONNX
+    model_name = "yolo"
+    triton_repo = tmp_path / "triton_repo"
+    triton_model = triton_repo / model_name
+
+
     f = YOLO(MODEL).export(format="onnx", dynamic=True)
 
-    # Prepare Triton repo
+
     (triton_model / "1").mkdir(parents=True, exist_ok=True)
     Path(f).rename(triton_model / "1" / "model.onnx")
     (triton_model / "config.pbtxt").touch()
 
-    # Define image https://catalog.ngc.nvidia.com/orgs/nvidia/containers/tritonserver
-    tag = "nvcr.io/nvidia/tritonserver:23.09-py3"  # 6.4 GB
 
-    # Pull the image
+    tag = "nvcr.io/nvidia/tritonserver:23.09-py3"
+
+
     subprocess.call(f"docker pull {tag}", shell=True)
 
-    # Run the Triton server and capture the container ID
+
     container_id = (
         subprocess.check_output(
             f"docker run -d --rm -v {triton_repo}:/models -p 8000:8000 {tag} tritonserver --model-repository=/models",
@@ -105,20 +105,20 @@ def test_triton(tmp_path):
         .strip()
     )
 
-    # Wait for the Triton server to start
+
     triton_client = InferenceServerClient(url="localhost:8000", verbose=False, ssl=False)
 
-    # Wait until model is ready
+
     for _ in range(10):
         with contextlib.suppress(Exception):
             assert triton_client.is_model_ready(model_name)
             break
         time.sleep(1)
 
-    # Check Triton inference
-    YOLO(f"http://localhost:8000/{model_name}", "detect")(SOURCE)  # exported model inference
 
-    # Kill and remove the container at the end of the test
+    YOLO(f"http://localhost:8000/{model_name}", "detect")(SOURCE)
+
+
     subprocess.call(f"docker kill {container_id}", shell=True)
 
 

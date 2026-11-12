@@ -63,18 +63,18 @@ class YOLO(Model):
             verbose (bool): Display model info on load.
         """
         path = Path(model if isinstance(model, (str, Path)) else "")
-        if "-world" in path.stem and path.suffix in {".pt", ".yaml", ".yml"}:  # if YOLOWorld PyTorch model
+        if "-world" in path.stem and path.suffix in {".pt", ".yaml", ".yml"}:
             new_instance = YOLOWorld(path, verbose=verbose)
             self.__class__ = type(new_instance)
             self.__dict__ = new_instance.__dict__
-        elif "yoloe" in path.stem and path.suffix in {".pt", ".yaml", ".yml"}:  # if YOLOE PyTorch model
+        elif "yoloe" in path.stem and path.suffix in {".pt", ".yaml", ".yml"}:
             new_instance = YOLOE(path, task=task, verbose=verbose)
             self.__class__ = type(new_instance)
             self.__dict__ = new_instance.__dict__
         else:
-            # Continue with default YOLO initialization
+
             super().__init__(model=model, task=task, verbose=verbose)
-            if hasattr(self.model, "model") and "RTDETR" in self.model.model[-1]._get_name():  # if RTDETR head
+            if hasattr(self.model, "model") and "RTDETR" in self.model.model[-1]._get_name():
                 from ultralytics import RTDETR
 
                 new_instance = RTDETR(self)
@@ -155,7 +155,7 @@ class YOLOWorld(Model):
         """
         super().__init__(model=model, task="detect", verbose=verbose)
 
-        # Assign default COCO class names when there are no custom names
+
         if not hasattr(self.model, "names"):
             self.model.names = YAML.load(ROOT / "cfg/datasets/coco8.yaml").get("names")
 
@@ -178,13 +178,13 @@ class YOLOWorld(Model):
             classes (list[str]): A list of categories i.e. ["person"].
         """
         self.model.set_classes(classes)
-        # Remove background if it's given
+
         background = " "
         if background in classes:
             classes.remove(background)
         self.model.names = classes
 
-        # Reset method class names
+
         if self.predictor:
             self.predictor.model.names = classes
 
@@ -312,13 +312,13 @@ class YOLOE(Model):
         """
         assert isinstance(self.model, YOLOEModel)
         if embeddings is None:
-            embeddings = self.get_text_pe(classes)  # generate text embeddings if not provided
+            embeddings = self.get_text_pe(classes)
         self.model.set_classes(classes, embeddings)
-        # Verify no background class is present
+
         assert " " not in classes
         self.model.names = classes
 
-        # Reset method class names
+
         if self.predictor:
             self.predictor.model.names = classes
 
@@ -340,8 +340,8 @@ class YOLOE(Model):
         Returns:
             (dict): Validation statistics containing metrics computed during validation.
         """
-        custom = {"rect": not load_vp}  # method defaults
-        args = {**self.overrides, **custom, **kwargs, "mode": "val"}  # highest priority args on the right
+        custom = {"rect": not load_vp}
+        args = {**self.overrides, **custom, **kwargs, "mode": "val"}
 
         validator = (validator or self._smart_load("validator"))(args=args, _callbacks=self.callbacks)
         validator(model=self.model, load_vp=load_vp, refer_data=refer_data)
@@ -406,7 +406,7 @@ class YOLOE(Model):
 
             num_cls = (
                 max(len(set(c)) for c in visual_prompts["cls"])
-                if isinstance(source, list) and refer_image is None  # means multiple images
+                if isinstance(source, list) and refer_image is None
                 else len(set(visual_prompts["cls"]))
             )
             self.model.model[-1].nc = num_cls
@@ -417,14 +417,14 @@ class YOLOE(Model):
             if refer_image is None and source is not None:
                 dataset = load_inference_source(source)
                 if dataset.mode in {"video", "stream"}:
-                    # NOTE: set the first frame as refer image for videos/streams inference
+
                     refer_image = next(iter(dataset))[1][0]
             if refer_image is not None:
                 vpe = self.predictor.get_vpe(refer_image)
                 self.model.set_classes(self.model.names, vpe)
                 self.task = "segment" if isinstance(self.predictor, yolo.segment.SegmentationPredictor) else "detect"
-                self.predictor = None  # reset predictor
+                self.predictor = None
         elif isinstance(self.predictor, yolo.yoloe.YOLOEVPDetectPredictor):
-            self.predictor = None  # reset predictor if no visual prompts
+            self.predictor = None
 
         return super().predict(source, stream, **kwargs)

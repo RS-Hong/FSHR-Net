@@ -64,8 +64,8 @@ class YOLOETrainer(DetectionTrainer):
             - The nc parameter here represents the maximum number of different text samples in one image,
               rather than the actual number of classes.
         """
-        # NOTE: This `nc` here is the max number of different text samples in one image, rather than the actual `nc`.
-        # NOTE: Following the official config, nc hard-coded to 80 for now.
+
+
         model = YOLOEModel(
             cfg["yaml_file"] if isinstance(cfg, dict) else cfg,
             ch=self.data["channels"],
@@ -122,8 +122,8 @@ class YOLOEPETrainer(DetectionTrainer):
         Returns:
             (YOLOEModel): Initialized model with frozen layers except for specific projection layers.
         """
-        # NOTE: This `nc` here is the max number of different text samples in one image, rather than the actual `nc`.
-        # NOTE: Following the official config, nc hard-coded to 80 for now.
+
+
         model = YOLOEModel(
             cfg["yaml_file"] if isinstance(cfg, dict) else cfg,
             ch=self.data["channels"],
@@ -139,11 +139,11 @@ class YOLOEPETrainer(DetectionTrainer):
 
         model.eval()
         names = list(self.data["names"].values())
-        # NOTE: `get_text_pe` related to text model and YOLOEDetect.reprta,
-        # it'd get correct results as long as loading proper pretrained weights.
+
+
         tpe = model.get_text_pe(names)
         model.set_classes(names, tpe)
-        model.model[-1].fuse(model.pe)  # fuse text embeddings to classify head
+        model.model[-1].fuse(model.pe)
         model.model[-1].cv3[0][2] = deepcopy(model.model[-1].cv3[0][2]).requires_grad_(True)
         model.model[-1].cv3[1][2] = deepcopy(model.model[-1].cv3[1][2]).requires_grad_(True)
         model.model[-1].cv3[2][2] = deepcopy(model.model[-1].cv3[2][2]).requires_grad_(True)

@@ -165,7 +165,7 @@ class ClassificationValidator(BaseValidator):
 
     def print_results(self) -> None:
         """Print evaluation metrics for the classification model."""
-        pf = "%22s" + "%11.3g" * len(self.metrics.keys)  # print format
+        pf = "%22s" + "%11.3g" * len(self.metrics.keys)
         LOGGER.info(pf % ("all", self.metrics.top1, self.metrics.top5))
 
     def plot_val_samples(self, batch: dict[str, Any], ni: int) -> None:
@@ -180,7 +180,7 @@ class ClassificationValidator(BaseValidator):
             >>> batch = {"img": torch.rand(16, 3, 224, 224), "cls": torch.randint(0, 10, (16,))}
             >>> validator.plot_val_samples(batch, 0)
         """
-        batch["batch_idx"] = torch.arange(batch["img"].shape[0])  # add batch index for plotting
+        batch["batch_idx"] = torch.arange(batch["img"].shape[0])
         plot_images(
             labels=batch,
             fname=self.save_dir / f"val_batch{ni}_labels.jpg",
@@ -213,4 +213,4 @@ class ClassificationValidator(BaseValidator):
             fname=self.save_dir / f"val_batch{ni}_pred.jpg",
             names=self.names,
             on_plot=self.on_plot,
-        )  # pred
+        )

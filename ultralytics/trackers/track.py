@@ -11,7 +11,7 @@ from ultralytics.utils.checks import check_yaml
 from .bot_sort import BOTSORT
 from .byte_tracker import BYTETracker
 
-# A mapping of tracker types to corresponding tracker classes
+
 TRACKER_MAP = {"bytetrack": BYTETracker, "botsort": BOTSORT}
 
 
@@ -39,7 +39,7 @@ def on_predict_start(predictor: object, persist: bool = False) -> None:
     if cfg.tracker_type not in {"bytetrack", "botsort"}:
         raise AssertionError(f"Only 'bytetrack' and 'botsort' are supported for now, but got '{cfg.tracker_type}'")
 
-    predictor._feats = None  # reset in case used earlier
+    predictor._feats = None
     if hasattr(predictor, "_hook"):
         predictor._hook.remove()
     if cfg.tracker_type == "botsort" and cfg.with_reid and cfg.model == "auto":
@@ -52,9 +52,9 @@ def on_predict_start(predictor: object, persist: bool = False) -> None:
         ):
             cfg.model = "yolo26n-cls.pt"
         else:
-            # Register hook to extract input of Detect layer
+
             def pre_hook(module, input):
-                predictor._feats = list(input[0])  # unroll to new list to avoid mutation in forward
+                predictor._feats = list(input[0])
 
             predictor._hook = predictor.model.model.model[-1].register_forward_pre_hook(pre_hook)
 
@@ -62,10 +62,10 @@ def on_predict_start(predictor: object, persist: bool = False) -> None:
     for _ in range(predictor.dataset.bs):
         tracker = TRACKER_MAP[cfg.tracker_type](args=cfg, frame_rate=30)
         trackers.append(tracker)
-        if predictor.dataset.mode != "stream":  # only need one tracker for other modes
+        if predictor.dataset.mode != "stream":
             break
     predictor.trackers = trackers
-    predictor.vid_path = [None] * predictor.dataset.bs  # for determining when to reset tracker on new video
+    predictor.vid_path = [None] * predictor.dataset.bs
 
 
 def on_predict_postprocess_end(predictor: object, persist: bool = False) -> None:

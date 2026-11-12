@@ -34,24 +34,24 @@ class TransformerDecoderLayer(nn.Module):
     ):
         """Initialize the TransformerDecoderLayer."""
         super().__init__()
-        # cross attention
+
         self.cross_attn = cross_attention
         self.dropout1 = nn.Dropout(dropout) if dropout > 0 else nn.Identity()
         self.norm1 = nn.LayerNorm(d_model)
 
-        # cross attention text
+
         self.use_text_cross_attention = use_text_cross_attention
         if use_text_cross_attention:
             self.ca_text = nn.MultiheadAttention(d_model, n_heads, dropout=dropout)
             self.catext_dropout = nn.Dropout(dropout) if dropout > 0 else nn.Identity()
             self.catext_norm = nn.LayerNorm(d_model)
 
-        # self attention
+
         self.self_attn = nn.MultiheadAttention(d_model, n_heads, dropout=dropout)
         self.dropout2 = nn.Dropout(dropout) if dropout > 0 else nn.Identity()
         self.norm2 = nn.LayerNorm(d_model)
 
-        # ffn
+
         self.linear1 = nn.Linear(d_model, dim_feedforward)
         self.activation = nn.ReLU()
         self.dropout3 = nn.Dropout(dropout) if dropout > 0 else nn.Identity()
@@ -73,27 +73,27 @@ class TransformerDecoderLayer(nn.Module):
 
     def forward(
         self,
-        # for tgt
-        tgt: torch.Tensor,  # nq, bs, d_model
-        tgt_query_pos: torch.Tensor = None,  # pos for query. MLP(Sine(pos))
-        memory_text: torch.Tensor = None,  # num_token, bs, d_model
-        text_attention_mask: torch.Tensor = None,  # bs, num_token
-        # for memory
-        memory: torch.Tensor = None,  # hw, bs, d_model
+
+        tgt: torch.Tensor,
+        tgt_query_pos: torch.Tensor = None,
+        memory_text: torch.Tensor = None,
+        text_attention_mask: torch.Tensor = None,
+
+        memory: torch.Tensor = None,
         memory_key_padding_mask: torch.Tensor = None,
-        memory_pos: torch.Tensor = None,  # pos for memory
-        # sa
-        self_attn_mask: torch.Tensor = None,  # mask used for self-attention
-        cross_attn_mask: torch.Tensor = None,  # mask used for cross-attention
-        # dac
+        memory_pos: torch.Tensor = None,
+
+        self_attn_mask: torch.Tensor = None,
+        cross_attn_mask: torch.Tensor = None,
+
         dac=False,
         dac_use_selfatt_ln=True,
         presence_token=None,
-        # skip inside deformable attn
-        **kwargs,  # additional kwargs for compatibility
+
+        **kwargs,
     ):
         """Input: - tgt/tgt_query_pos: nq, bs, d_model. -."""
-        # self attention
+
         tgt, tgt_query_pos = self._apply_self_attention(
             tgt, tgt_query_pos, dac, dac_use_selfatt_ln, presence_token, self_attn_mask
         )
@@ -110,9 +110,9 @@ class TransformerDecoderLayer(nn.Module):
 
         if presence_token is not None:
             presence_token_mask = torch.zeros_like(cross_attn_mask[:, :1, :])
-            cross_attn_mask = torch.cat([presence_token_mask, cross_attn_mask], dim=1)  # (bs*nheads, 1+nq, hw)
+            cross_attn_mask = torch.cat([presence_token_mask, cross_attn_mask], dim=1)
 
-        # Cross attention to image
+
         tgt2 = self.cross_attn(
             query=self.with_pos_embed(tgt, tgt_query_pos),
             key=self.with_pos_embed(memory, memory_pos),
@@ -125,7 +125,7 @@ class TransformerDecoderLayer(nn.Module):
         tgt = tgt + self.dropout1(tgt2)
         tgt = self.norm1(tgt)
 
-        # ffn
+
         tgt = self.forward_ffn(tgt.to(memory.dtype))
 
         presence_token_out = None
@@ -141,7 +141,7 @@ class TransformerDecoderLayer(nn.Module):
             return tgt
 
         if dac:
-            # Split queries for DAC (detect-and-classify)
+
             assert tgt.shape[0] % 2 == 0, "DAC requires even number of queries"
             num_o2o_queries = tgt.shape[0] // 2
             tgt_o2o = tgt[:num_o2o_queries]
@@ -151,7 +151,7 @@ class TransformerDecoderLayer(nn.Module):
             tgt_o2o = tgt
             tgt_query_pos_o2o = tgt_query_pos
 
-        # Handle presence token
+
         if presence_token is not None:
             tgt_o2o = torch.cat([presence_token, tgt_o2o], dim=0)
             tgt_query_pos_o2o = torch.cat([torch.zeros_like(presence_token), tgt_query_pos_o2o], dim=0).to(
@@ -159,12 +159,12 @@ class TransformerDecoderLayer(nn.Module):
             )
             tgt_query_pos = torch.cat([torch.zeros_like(presence_token), tgt_query_pos], dim=0)
 
-        # Self-attention
+
         q = k = self.with_pos_embed(tgt_o2o, tgt_query_pos_o2o)
         tgt2 = self.self_attn(q, k, tgt_o2o, attn_mask=self_attn_mask)[0].to(tgt.dtype)
         tgt_o2o = tgt_o2o + self.dropout2(tgt2)
 
-        # Recombine and normalize
+
         if dac:
             if not dac_use_selfatt_ln:
                 tgt_o2o = self.norm2(tgt_o2o)
@@ -194,11 +194,11 @@ class TransformerDecoder(nn.Module):
         num_o2m_queries: int = 0,
         dac: bool = False,
         boxRPB: str = "none",
-        # Experimental: An object query for SAM 2 tasks
+
         instance_query: bool = False,
-        # Defines the number of additional instance queries,
-        # 1 or 4 are the most likely for single vs multi mask support
-        num_instances: int = 1,  # Irrelevant if instance_query is False
+
+
+        num_instances: int = 1,
         dac_use_selfatt_ln: bool = True,
         use_act_checkpoint: bool = False,
         compile_mode=None,
@@ -296,11 +296,11 @@ class TransformerDecoder(nn.Module):
 
         self.compile_mode = compile_mode
         self.compiled = False
-        # We defer compilation till after the first forward, to first warm-up the boxRPB cache
 
-        # assign layer index to each layer so that some layers can decide what to do
-        # based on which layer index they are (e.g. cross attention to memory bank only
-        # in selected layers)
+
+
+
+
         for layer_idx, layer in enumerate(self.layers):
             layer.layer_idx = layer_idx
 
@@ -324,11 +324,11 @@ class TransformerDecoder(nn.Module):
             H,
             W,
         ):
-            # good, hitting the cache, will be compilable
+
             coords_h, coords_w = self.compilable_cord_cache
         else:
-            # cache miss, will create compilation issue
-            # In case we're not compiling, we'll still rely on the dict-based cache
+
+
             if feat_size not in self.coord_cache:
                 self.coord_cache[feat_size] = self._get_coords(H, W, reference_boxes.device)
             coords_h, coords_w = self.coord_cache[feat_size]
@@ -342,10 +342,10 @@ class TransformerDecoder(nn.Module):
         deltas_x = deltas_x.view(bs, num_queries, -1, 2)
 
         if self.boxRPB in ["log", "both"]:
-            deltas_x_log = deltas_x * 8  # normalize to -8, 8
+            deltas_x_log = deltas_x * 8
             deltas_x_log = torch.sign(deltas_x_log) * torch.log2(torch.abs(deltas_x_log) + 1.0) / np.log2(8)
 
-            deltas_y_log = deltas_y * 8  # normalize to -8, 8
+            deltas_y_log = deltas_y * 8
             deltas_y_log = torch.sign(deltas_y_log) * torch.log2(torch.abs(deltas_y_log) + 1.0) / np.log2(8)
             if self.boxRPB == "log":
                 deltas_x = deltas_x_log
@@ -356,19 +356,19 @@ class TransformerDecoder(nn.Module):
 
         if self.training:
             assert self.use_act_checkpoint, "activation ckpt not enabled in decoder"
-        deltas_x = self.boxRPB_embed_x(x=deltas_x)  # bs, num_queries, W, n_heads
-        deltas_y = self.boxRPB_embed_y(x=deltas_y)  # bs, num_queries, H, n_heads
+        deltas_x = self.boxRPB_embed_x(x=deltas_x)
+        deltas_y = self.boxRPB_embed_y(x=deltas_y)
 
         if not torch.compiler.is_dynamo_compiling():
             assert deltas_x.shape[:3] == (bs, num_queries, W)
             assert deltas_y.shape[:3] == (bs, num_queries, H)
 
-        B = deltas_y.unsqueeze(3) + deltas_x.unsqueeze(2)  # bs, num_queries, H, W, n_heads
+        B = deltas_y.unsqueeze(3) + deltas_x.unsqueeze(2)
         if not torch.compiler.is_dynamo_compiling():
             assert B.shape[:4] == (bs, num_queries, H, W)
-        B = B.flatten(2, 3)  # bs, num_queries, H*W, n_heads
-        B = B.permute(0, 3, 1, 2)  # bs, n_heads, num_queries, H*W
-        B = B.contiguous()  # memeff attn likes ordered strides
+        B = B.flatten(2, 3)
+        B = B.permute(0, 3, 1, 2)
+        B = B.contiguous()
         if not torch.compiler.is_dynamo_compiling():
             assert B.shape[2:] == (num_queries, H * W)
         return B
@@ -381,18 +381,18 @@ class TransformerDecoder(nn.Module):
         memory_mask: torch.Tensor = None,
         memory_key_padding_mask: torch.Tensor = None,
         pos: torch.Tensor = None,
-        reference_boxes: torch.Tensor = None,  # num_queries, bs, 4
-        # for memory
-        spatial_shapes: torch.Tensor = None,  # bs, num_levels, 2
+        reference_boxes: torch.Tensor = None,
+
+        spatial_shapes: torch.Tensor = None,
         valid_ratios: torch.Tensor = None,
-        # for text
+
         memory_text: torch.Tensor = None,
         text_attention_mask: torch.Tensor = None,
-        # if `apply_dac` is None, it will default to `self.dac`
+
         apply_dac: bool | None = None,
         is_instance_prompt=False,
         decoder_extra_kwargs: dict | None = None,
-        # ROI memory bank
+
         obj_roi_memory_feat=None,
         obj_roi_memory_mask=None,
         box_head_trk=None,
@@ -410,8 +410,8 @@ class TransformerDecoder(nn.Module):
             )
 
             tgt = tgt.repeat(2, 1, 1)
-            # note that we don't tile tgt_mask, since DAC doesn't
-            # use self-attention in o2m queries
+
+
             if reference_boxes is not None:
                 assert (reference_boxes.shape[0] == self.num_queries) or (
                     self.use_instance_query and (reference_boxes.shape[0] == self.instance_query_embed.num_embeddings)
@@ -425,7 +425,7 @@ class TransformerDecoder(nn.Module):
 
         if self.box_refine:
             if reference_boxes is None:
-                # In this case, we're in a one-stage model, so we generate the reference boxes
+
                 reference_boxes = self.reference_points.weight.unsqueeze(1)
                 reference_boxes = reference_boxes.repeat(2, bs, 1) if apply_dac else reference_boxes.repeat(1, bs, 1)
                 reference_boxes = reference_boxes.sigmoid()
@@ -437,7 +437,7 @@ class TransformerDecoder(nn.Module):
         output = tgt
         presence_out = None
         if self.presence_token is not None and is_instance_prompt is False:
-            # expand to batch dim
+
             presence_out = self.presence_token.weight[None].expand(1, bs, -1)
 
         box_head = self.bbox_embed
@@ -451,14 +451,14 @@ class TransformerDecoder(nn.Module):
         for layer_idx, layer in enumerate(self.layers):
             reference_points_input = (
                 reference_boxes[:, :, None] * torch.cat([valid_ratios, valid_ratios], -1)[None, :]
-            )  # nq, bs, nlevel, 4
+            )
 
             query_sine_embed = gen_sineembed_for_position(
                 reference_points_input[:, :, 0, :], self.d_model
-            )  # nq, bs, d_model*2
+            )
 
-            # conditional query
-            query_pos = self.ref_point_head(query_sine_embed)  # nq, bs, d_model
+
+            query_pos = self.ref_point_head(query_sine_embed)
 
             if self.boxRPB != "none" and reference_boxes is not None:
                 assert spatial_shapes.shape[0] == 1, "only single scale support implemented"
@@ -466,7 +466,7 @@ class TransformerDecoder(nn.Module):
                     reference_boxes,
                     (spatial_shapes[0, 0], spatial_shapes[0, 1]),
                 )
-                memory_mask = memory_mask.flatten(0, 1)  # (bs*n_heads, nq, H*W)
+                memory_mask = memory_mask.flatten(0, 1)
             if self.training:
                 assert self.use_act_checkpoint, "Activation checkpointing not enabled in the decoder"
             output, presence_out = layer(
@@ -483,22 +483,22 @@ class TransformerDecoder(nn.Module):
                 dac_use_selfatt_ln=self.dac_use_selfatt_ln,
                 presence_token=presence_out,
                 **(decoder_extra_kwargs or {}),
-                # ROI memory bank
+
                 obj_roi_memory_feat=obj_roi_memory_feat,
                 obj_roi_memory_mask=obj_roi_memory_mask,
             )
 
-            # iter update
+
             if self.box_refine:
                 reference_before_sigmoid = inverse_sigmoid(reference_boxes)
                 if box_head_trk is None:
-                    # delta_unsig = self.bbox_embed(output)
+
                     if not self.use_normed_output_consistently:
                         delta_unsig = box_head(output)
                     else:
                         delta_unsig = box_head(out_norm(output))
                 else:
-                    # box_head_trk use a separate box head for tracking queries
+
                     Q_det = decoder_extra_kwargs["Q_det"]
                     assert output.size(0) >= Q_det
                     delta_unsig_det = self.bbox_embed(output[:Q_det])
@@ -515,12 +515,12 @@ class TransformerDecoder(nn.Module):
 
             intermediate.append(out_norm(output))
             if self.presence_token is not None and is_instance_prompt is False:
-                # norm, mlp head
+
                 intermediate_layer_presence_logits = self.presence_token_head(
                     self.presence_token_out_norm(presence_out)
                 ).squeeze(-1)
 
-                # clamp to mitigate numerical issues
+
                 if self.clamp_presence_logits:
                     intermediate_layer_presence_logits.clamp(
                         min=-self.clamp_presence_logit_max_val,

@@ -48,7 +48,7 @@ class SAHIInference:
             yolo11_model_path = weights
         else:
             yolo11_model_path = f"models/{weights}"
-            download_model_weights(yolo11_model_path)  # Download model if not present
+            download_model_weights(yolo11_model_path)
         self.detection_model = AutoDetectionModel.from_pretrained(
             model_type="ultralytics", model_path=yolo11_model_path, device=select_device(device)
         )
@@ -81,7 +81,7 @@ class SAHIInference:
             slice_width (int, optional): Slice width for inference.
             slice_height (int, optional): Slice height for inference.
         """
-        # Video setup
+
         cap = cv2.VideoCapture(source)
         if not cap.isOpened():
             raise FileNotFoundError(f"Unable to open video source: '{source}'")
@@ -91,36 +91,36 @@ class SAHIInference:
             save_dir = increment_path("runs/detect/predict", exist_ok)
             save_dir.mkdir(parents=True, exist_ok=True)
 
-        # Load model
+
         self.load_model(weights, device)
-        idx = 0  # Index for image frame writing
+        idx = 0
         while cap.isOpened():
             success, frame = cap.read()
             if not success:
                 break
 
-            # Perform sliced prediction using SAHI
+
             results = get_sliced_prediction(
-                frame[..., ::-1],  # Convert BGR to RGB
+                frame[..., ::-1],
                 self.detection_model,
                 slice_height=slice_height,
                 slice_width=slice_width,
             )
 
-            # Display results if requested
+
             if view_img:
                 cv2.imshow("Ultralytics YOLO Inference", frame)
 
-            # Save results if requested
+
             if save_img and save_dir is not None:
                 idx += 1
                 results.export_visuals(export_dir=save_dir, file_name=f"img_{idx}", hide_conf=hide_conf)
 
-            # Break loop if 'q' is pressed
+
             if cv2.waitKey(1) & 0xFF == ord("q"):
                 break
 
-        # Clean up resources
+
         cap.release()
         cv2.destroyAllWindows()
 

@@ -24,7 +24,7 @@ def test_export():
     exporter.add_callback("on_export_start", test_func)
     assert test_func in exporter.callbacks["on_export_start"], "callback test failed"
     f = exporter(model=YOLO("yolo26n.yaml").model)
-    YOLO(f)(SOURCE)  # exported model inference
+    YOLO(f)(SOURCE)
 
 
 def test_detect():
@@ -34,28 +34,28 @@ def test_detect():
     cfg.data = "coco8.yaml"
     cfg.imgsz = 32
 
-    # Trainer
+
     trainer = detect.DetectionTrainer(overrides=overrides)
     trainer.add_callback("on_train_start", test_func)
     assert test_func in trainer.callbacks["on_train_start"], "callback test failed"
     trainer.train()
 
-    # Validator
+
     val = detect.DetectionValidator(args=cfg)
     val.add_callback("on_val_start", test_func)
     assert test_func in val.callbacks["on_val_start"], "callback test failed"
-    val(model=trainer.best)  # validate best.pt
+    val(model=trainer.best)
 
-    # Predictor
+
     pred = detect.DetectionPredictor(overrides={"imgsz": [64, 64]})
     pred.add_callback("on_predict_start", test_func)
     assert test_func in pred.callbacks["on_predict_start"], "callback test failed"
-    # Confirm there is no issue with sys.argv being empty
+
     with mock.patch.object(sys, "argv", []):
         result = pred(source=ASSETS, model=MODEL)
         assert len(result), "predictor test failed"
 
-    # Test resume functionality
+
     overrides["resume"] = trainer.last
     trainer = detect.DetectionTrainer(overrides=overrides)
     try:
@@ -82,26 +82,26 @@ def test_segment():
     cfg.data = "coco8-seg.yaml"
     cfg.imgsz = 32
 
-    # Trainer
+
     trainer = segment.SegmentationTrainer(overrides=overrides)
     trainer.add_callback("on_train_start", test_func)
     assert test_func in trainer.callbacks["on_train_start"], "callback test failed"
     trainer.train()
 
-    # Validator
+
     val = segment.SegmentationValidator(args=cfg)
     val.add_callback("on_val_start", test_func)
     assert test_func in val.callbacks["on_val_start"], "callback test failed"
-    val(model=trainer.best)  # validate best.pt
+    val(model=trainer.best)
 
-    # Predictor
+
     pred = segment.SegmentationPredictor(overrides={"imgsz": [64, 64]})
     pred.add_callback("on_predict_start", test_func)
     assert test_func in pred.callbacks["on_predict_start"], "callback test failed"
     result = pred(source=ASSETS, model=WEIGHTS_DIR / "yolo26n-seg.pt")
     assert len(result), "predictor test failed"
 
-    # Test resume functionality
+
     overrides["resume"] = trainer.last
     trainer = segment.SegmentationTrainer(overrides=overrides)
     try:
@@ -120,19 +120,19 @@ def test_classify():
     cfg.data = "imagenet10"
     cfg.imgsz = 32
 
-    # Trainer
+
     trainer = classify.ClassificationTrainer(overrides=overrides)
     trainer.add_callback("on_train_start", test_func)
     assert test_func in trainer.callbacks["on_train_start"], "callback test failed"
     trainer.train()
 
-    # Validator
+
     val = classify.ClassificationValidator(args=cfg)
     val.add_callback("on_val_start", test_func)
     assert test_func in val.callbacks["on_val_start"], "callback test failed"
     val(model=trainer.best)
 
-    # Predictor
+
     pred = classify.ClassificationPredictor(overrides={"imgsz": [64, 64]})
     pred.add_callback("on_predict_start", test_func)
     assert test_func in pred.callbacks["on_predict_start"], "callback test failed"

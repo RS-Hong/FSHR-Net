@@ -97,7 +97,7 @@ class FastSAMPredictor(SegmentationPredictor):
             masks = result.masks.data
             if masks.shape[1:] != result.orig_shape:
                 masks = (scale_masks(masks[None].float(), result.orig_shape)[0] > 0.5).byte()
-            # bboxes prompt
+
             idx = torch.zeros(len(result), dtype=torch.bool, device=self.device)
             if bboxes is not None:
                 bboxes = torch.as_tensor(bboxes, dtype=torch.int32, device=self.device)
@@ -119,7 +119,7 @@ class FastSAMPredictor(SegmentationPredictor):
                 )
                 point_idx = (
                     torch.ones(len(result), dtype=torch.bool, device=self.device)
-                    if labels.sum() == 0  # all negative points
+                    if labels.sum() == 0
                     else torch.zeros(len(result), dtype=torch.bool, device=self.device)
                 )
                 for point, label in zip(points, labels):
@@ -131,12 +131,12 @@ class FastSAMPredictor(SegmentationPredictor):
                 crop_ims, filter_idx = [], []
                 for i, b in enumerate(result.boxes.xyxy.tolist()):
                     x1, y1, x2, y2 = (int(x) for x in b)
-                    if (masks[i].sum() if TORCH_1_10 else masks[i].sum(0).sum()) <= 100:  # torch 1.9 bug workaround
+                    if (masks[i].sum() if TORCH_1_10 else masks[i].sum(0).sum()) <= 100:
                         filter_idx.append(i)
                         continue
                     crop_ims.append(Image.fromarray(result.orig_img[y1:y2, x1:x2, ::-1]))
                 similarity = self._clip_inference(crop_ims, texts)
-                text_idx = torch.argmax(similarity, dim=-1)  # (M, )
+                text_idx = torch.argmax(similarity, dim=-1)
                 if len(filter_idx):
                     text_idx += (torch.tensor(filter_idx, device=self.device)[None] <= int(text_idx)).sum(0)
                 idx[text_idx] = True
@@ -162,7 +162,7 @@ class FastSAMPredictor(SegmentationPredictor):
         images = torch.stack([self.clip.image_preprocess(image).to(self.device) for image in images])
         image_features = self.clip.encode_image(images)
         text_features = self.clip.encode_text(self.clip.tokenize(texts))
-        return text_features @ image_features.T  # (M, N)
+        return text_features @ image_features.T
 
     def set_prompts(self, prompts):
         """Set prompts to be used during inference."""

@@ -24,12 +24,12 @@ def _ntuple(n):
 to_2tuple = _ntuple(2)
 to_4tuple = _ntuple(4)
 
-# `xyxy` means left top and right bottom
-# `xywh` means center x, center y and width, height(YOLO format)
-# `ltwh` means left top and width, height(COCO format)
+
+
+
 _formats = ["xyxy", "xywh", "ltwh"]
 
-__all__ = ("Bboxes", "Instances")  # tuple or list
+__all__ = ("Bboxes", "Instances")
 
 
 class Bboxes:
@@ -94,9 +94,9 @@ class Bboxes:
     def areas(self) -> np.ndarray:
         """Calculate the area of bounding boxes."""
         return (
-            (self.bboxes[:, 2] - self.bboxes[:, 0]) * (self.bboxes[:, 3] - self.bboxes[:, 1])  # format xyxy
+            (self.bboxes[:, 2] - self.bboxes[:, 0]) * (self.bboxes[:, 3] - self.bboxes[:, 1])
             if self.format == "xyxy"
-            else self.bboxes[:, 3] * self.bboxes[:, 2]  # format xywh or ltwh
+            else self.bboxes[:, 3] * self.bboxes[:, 2]
         )
 
     def mul(self, scale: int | tuple | list) -> None:
@@ -389,7 +389,7 @@ class Instances:
         self.segments[..., 0] = self.segments[..., 0].clip(0, w)
         self.segments[..., 1] = self.segments[..., 1].clip(0, h)
         if self.keypoints is not None:
-            # Set out of bounds visibility to zero
+
             self.keypoints[..., 2][
                 (self.keypoints[..., 0] < 0)
                 | (self.keypoints[..., 0] > w)
@@ -462,13 +462,13 @@ class Instances:
 
         cat_boxes = np.concatenate([ins.bboxes for ins in instances_list], axis=axis)
         seg_len = [b.segments.shape[1] for b in instances_list]
-        if len(frozenset(seg_len)) > 1:  # resample segments if there's different length
+        if len(frozenset(seg_len)) > 1:
             max_len = max(seg_len)
             cat_segments = np.concatenate(
                 [
                     resample_segments(list(b.segments), max_len)
                     if len(b.segments)
-                    else np.zeros((0, max_len, 2), dtype=np.float32)  # re-generating empty segments
+                    else np.zeros((0, max_len, 2), dtype=np.float32)
                     for b in instances_list
                 ],
                 axis=axis,

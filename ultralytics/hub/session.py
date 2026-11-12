@@ -57,31 +57,31 @@ class HUBTrainingSession:
         """
         from hub_sdk import HUBClient
 
-        self.rate_limits = {"metrics": 3, "ckpt": 900, "heartbeat": 300}  # rate limits (seconds)
-        self.metrics_queue = {}  # holds metrics for each epoch until upload
-        self.metrics_upload_failed_queue = {}  # holds metrics for each epoch if upload failed
-        self.timers = {}  # holds timers in ultralytics/utils/callbacks/hub.py
+        self.rate_limits = {"metrics": 3, "ckpt": 900, "heartbeat": 300}
+        self.metrics_queue = {}
+        self.metrics_upload_failed_queue = {}
+        self.timers = {}
         self.model = None
         self.model_url = None
         self.model_file = None
         self.train_args = None
 
-        # Parse input
+
         api_key, model_id, self.filename = self._parse_identifier(identifier)
 
-        # Get credentials
-        active_key = api_key or SETTINGS.get("api_key")
-        credentials = {"api_key": active_key} if active_key else None  # set credentials
 
-        # Initialize client
+        active_key = api_key or SETTINGS.get("api_key")
+        credentials = {"api_key": active_key} if active_key else None
+
+
         self.client = HUBClient(credentials)
 
-        # Load models
+
         try:
             if model_id:
-                self.load_model(model_id)  # load existing model
+                self.load_model(model_id)
             else:
-                self.model = self.client.model()  # load empty model
+                self.model = self.client.model()
         except Exception:
             if identifier.startswith(f"{HUB_WEB_ROOT}/models/") and not self.client.authenticated:
                 LOGGER.warning(
@@ -102,11 +102,11 @@ class HUBTrainingSession:
         """
         try:
             session = cls(identifier)
-            if args and not identifier.startswith(f"{HUB_WEB_ROOT}/models/"):  # not a HUB model URL
+            if args and not identifier.startswith(f"{HUB_WEB_ROOT}/models/"):
                 session.create_model(args)
                 assert session.model.id, "HUB model not loaded correctly"
             return session
-        # PermissionError and ModuleNotFoundError indicate hub-sdk not installed
+
         except (PermissionError, ModuleNotFoundError, AssertionError):
             return None
 
@@ -120,17 +120,17 @@ class HUBTrainingSession:
             ValueError: If the specified HUB model does not exist.
         """
         self.model = self.client.model(model_id)
-        if not self.model.data:  # then model does not exist
-            raise ValueError(emojis("❌ The specified HUB model does not exist"))  # TODO: improve error handling
+        if not self.model.data:
+            raise ValueError(emojis("❌ The specified HUB model does not exist"))
 
         self.model_url = f"{HUB_WEB_ROOT}/models/{self.model.id}"
         if self.model.is_trained():
             LOGGER.info(f"Loading trained HUB model {self.model_url} 🚀")
-            url = self.model.get_weights_url("best")  # download URL with auth
+            url = self.model.get_weights_url("best")
             self.model_file = checks.check_file(url, download_dir=Path(SETTINGS["weights_dir"]) / "hub" / self.model.id)
             return
 
-        # Set training args and start heartbeats for HUB to monitor agent
+
         self._set_train_args()
         self.model.start_heartbeat(self.rate_limits["heartbeat"])
         LOGGER.info(f"{PREFIX}View model at {self.model_url} 🚀")
@@ -151,8 +151,8 @@ class HUBTrainingSession:
                 "epochs": model_args.get("epochs", 300),
                 "imageSize": model_args.get("imgsz", 640),
                 "patience": model_args.get("patience", 100),
-                "device": str(model_args.get("device", "")),  # convert None to string
-                "cache": str(model_args.get("cache", "ram")),  # convert True, False, None to string
+                "device": str(model_args.get("device", "")),
+                "cache": str(model_args.get("cache", "ram")),
             },
             "dataset": {"name": model_args.get("data")},
             "lineage": {
@@ -167,14 +167,14 @@ class HUBTrainingSession:
 
         self.model.create_model(payload)
 
-        # Model could not be created
-        # TODO: improve error handling
+
+
         if not self.model.id:
             return None
 
         self.model_url = f"{HUB_WEB_ROOT}/models/{self.model.id}"
 
-        # Start heartbeats for HUB to monitor agent
+
         self.model.start_heartbeat(self.rate_limits["heartbeat"])
 
         LOGGER.info(f"{PREFIX}View model at {self.model_url} 🚀")
@@ -204,8 +204,8 @@ class HUBTrainingSession:
             filename = identifier
         elif identifier.startswith(f"{HUB_WEB_ROOT}/models/"):
             parsed_url = urlparse(identifier)
-            model_id = Path(parsed_url.path).stem  # handle possible final backslash robustly
-            query_params = parse_qs(parsed_url.query)  # dictionary, i.e. {"api_key": ["API_KEY_HERE"]}
+            model_id = Path(parsed_url.path).stem
+            query_params = parse_qs(parsed_url.query)
             api_key = query_params.get("api_key", [None])[0]
         else:
             raise HUBModelError(f"model='{identifier} invalid, correct format is {HUB_WEB_ROOT}/models/MODEL_ID")
@@ -223,23 +223,23 @@ class HUBTrainingSession:
                 issues with the provided training arguments.
         """
         if self.model.is_resumable():
-            # Model has saved weights
+
             self.train_args = {"data": self.model.get_dataset_url(), "resume": True}
             self.model_file = self.model.get_weights_url("last")
         else:
-            # Model has no saved weights
-            self.train_args = self.model.data.get("train_args")  # new response
 
-            # Set the model file as either a *.pt or *.yaml file
+            self.train_args = self.model.data.get("train_args")
+
+
             self.model_file = (
                 self.model.get_weights_url("parent") if self.model.is_pretrained() else self.model.get_architecture()
             )
 
         if "data" not in self.train_args:
-            # RF bug - datasets are sometimes not exported
+
             raise ValueError("Dataset may still be processing. Please wait a minute and try again.")
 
-        self.model_file = checks.check_yolov5u_filename(self.model_file, verbose=False)  # YOLOv5->YOLOv5u
+        self.model_file = checks.check_yolov5u_filename(self.model_file, verbose=False)
         self.model_id = self.model.id
 
     def request_queue(
@@ -273,18 +273,18 @@ class HUBTrainingSession:
 
         def retry_request():
             """Attempt to call request_func with retries, timeout, and optional threading."""
-            t0 = time.time()  # Record the start time for the timeout
+            t0 = time.time()
             response = None
             for i in range(retry + 1):
                 if (time.time() - t0) > timeout:
                     LOGGER.warning(f"{PREFIX}Timeout for request reached. {HELP_MSG}")
-                    break  # Timeout reached, exit loop
+                    break
 
                 response = request_func(*args, **kwargs)
                 if response is None:
                     LOGGER.warning(f"{PREFIX}Received no response from the request. {HELP_MSG}")
-                    time.sleep(2**i)  # Exponential backoff before retrying
-                    continue  # Skip further processing and retry
+                    time.sleep(2**i)
+                    continue
 
                 if progress_total:
                     self._show_upload_progress(progress_total, response)
@@ -292,13 +292,13 @@ class HUBTrainingSession:
                     self._iterate_content(response)
 
                 if HTTPStatus.OK <= response.status_code < HTTPStatus.MULTIPLE_CHOICES:
-                    # if request related to metrics upload
+
                     if kwargs.get("metrics"):
                         self.metrics_upload_failed_queue = {}
-                    return response  # Success, no need to retry
+                    return response
 
                 if i == 0:
-                    # Initial attempt, check status code and provide messages
+
                     message = self._get_failure_message(response, retry, timeout)
 
                     if verbose:
@@ -306,21 +306,21 @@ class HUBTrainingSession:
 
                 if not self._should_retry(response.status_code):
                     LOGGER.warning(f"{PREFIX}Request failed. {HELP_MSG} ({response.status_code}")
-                    break  # Not an error that should be retried, exit loop
+                    break
 
-                time.sleep(2**i)  # Exponential backoff for retries
+                time.sleep(2**i)
 
-            # if request related to metrics upload and exceed retries
+
             if response is None and kwargs.get("metrics"):
                 self.metrics_upload_failed_queue.update(kwargs.get("metrics"))
 
             return response
 
         if thread:
-            # Start a new thread to run the retry_request function
+
             threading.Thread(target=retry_request, daemon=True).start()
         else:
-            # If running in the main thread, call retry_request directly
+
             return retry_request()
 
     @staticmethod
@@ -346,7 +346,7 @@ class HUBTrainingSession:
         """
         if self._should_retry(response.status_code):
             return f"Retrying {retry}x for {timeout}s." if retry else ""
-        elif response.status_code == HTTPStatus.TOO_MANY_REQUESTS:  # rate limit
+        elif response.status_code == HTTPStatus.TOO_MANY_REQUESTS:
             headers = response.headers
             return (
                 f"Rate limit reached ({headers['X-RateLimit-Remaining']}/{headers['X-RateLimit-Limit']}). "
@@ -389,7 +389,7 @@ class HUBTrainingSession:
                     "For more reliable training, consider using Ultralytics HUB Cloud. "
                     "Learn more at https://docs.ultralytics.com/hub/cloud-training."
                 )
-                shutil.copy(last, weights)  # copy last.pt to best.pt
+                shutil.copy(last, weights)
             else:
                 LOGGER.warning(f"{PREFIX} Model upload issue. Missing model {weights}.")
                 return
@@ -404,7 +404,7 @@ class HUBTrainingSession:
             retry=10,
             timeout=3600,
             thread=not final,
-            progress_total=weights.stat().st_size if final else None,  # only show progress if final
+            progress_total=weights.stat().st_size if final else None,
             stream_response=True,
         )
 
@@ -419,4 +419,4 @@ class HUBTrainingSession:
     def _iterate_content(response) -> None:
         """Process the streamed HTTP response data."""
         for _ in response.iter_content(chunk_size=1024):
-            pass  # Do nothing with data chunks
+            pass

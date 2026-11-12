@@ -14,5 +14,5 @@ if __name__ == '__main__':
         epochs=300,
         device=0,
         pretrained = False,
-        save_period=20,  # 每10轮保存一次权重
+        save_period=20,
     )

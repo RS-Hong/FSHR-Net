@@ -85,7 +85,7 @@ class RegionCounter(BaseSolution):
         """Initialize regions from `self.region` only once."""
         if self.region is None:
             self.initialize_region()
-        if not isinstance(self.region, dict):  # Ensure self.region is initialized and structured as a dictionary
+        if not isinstance(self.region, dict):
             self.region = {"Region#01": self.region}
         for i, (name, pts) in enumerate(self.region.items()):
             region = self.add_region(name, pts, colors(i, True), (255, 255, 255))
@@ -112,7 +112,7 @@ class RegionCounter(BaseSolution):
                     region["counts"] += 1
                     self.region_counts[region["name"]] = region["counts"]
 
-        # Display region counts
+
         for region in self.counting_regions:
             poly = region["polygon"]
             pts = list(map(tuple, np.array(poly.exterior.coords, dtype=np.int32)))
@@ -126,7 +126,7 @@ class RegionCounter(BaseSolution):
                 margin=self.line_width * 4,
                 shape="rect",
             )
-            region["counts"] = 0  # Reset for next frame
+            region["counts"] = 0
         plot_im = annotator.result()
         self.display_output(plot_im)
 

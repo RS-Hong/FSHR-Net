@@ -12,12 +12,12 @@ def adjust_bboxes_to_image_border(boxes, image_shape, threshold=20):
     Returns:
         (torch.Tensor): Adjusted bounding boxes with shape (N, 4).
     """
-    # Image dimensions
+
     h, w = image_shape
 
-    # Adjust boxes that are close to image borders
-    boxes[boxes[:, 0] < threshold, 0] = 0  # x1
-    boxes[boxes[:, 1] < threshold, 1] = 0  # y1
-    boxes[boxes[:, 2] > w - threshold, 2] = w  # x2
-    boxes[boxes[:, 3] > h - threshold, 3] = h  # y2
+
+    boxes[boxes[:, 0] < threshold, 0] = 0
+    boxes[boxes[:, 1] < threshold, 1] = 0
+    boxes[boxes[:, 2] > w - threshold, 2] = w
+    boxes[boxes[:, 3] > h - threshold, 3] = h
     return boxes

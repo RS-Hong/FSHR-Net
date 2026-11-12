@@ -129,7 +129,7 @@ class PoseValidator(DetectionValidator):
         """
         preds = super().postprocess(preds)
         for pred in preds:
-            pred["keypoints"] = pred.pop("extra").view(-1, *self.kpt_shape)  # remove extra if exists
+            pred["keypoints"] = pred.pop("extra").view(-1, *self.kpt_shape)
         return preds
 
     def _prepare_batch(self, si: int, batch: dict[str, Any]) -> dict[str, Any]:
@@ -178,11 +178,11 @@ class PoseValidator(DetectionValidator):
         if gt_cls.shape[0] == 0 or preds["cls"].shape[0] == 0:
             tp_p = np.zeros((preds["cls"].shape[0], self.niou), dtype=bool)
         else:
-            # `0.53` is from https://github.com/jin-s13/xtcocoapi/blob/master/xtcocotools/cocoeval.py#L384
+
             area = ops.xyxy2xywh(batch["bboxes"])[:, 2:].prod(1) * 0.53
             iou = kpt_iou(batch["keypoints"], preds["keypoints"], sigma=self.sigma, area=area)
             tp_p = self.match_predictions(preds["cls"], gt_cls, iou).cpu().numpy()
-        tp.update({"tp_p": tp_p})  # update tp with kpts IoU
+        tp.update({"tp_p": tp_p})
         return tp
 
     def save_one_txt(self, predn: dict[str, torch.Tensor], save_conf: bool, shape: tuple[int, int], file: Path) -> None:
@@ -227,7 +227,7 @@ class PoseValidator(DetectionValidator):
         super().pred_to_json(predn, pbatch)
         kpts = predn["kpts"]
         for i, k in enumerate(kpts.flatten(1, 2).tolist()):
-            self.jdict[-len(kpts) + i]["keypoints"] = k  # keypoints
+            self.jdict[-len(kpts) + i]["keypoints"] = k
 
     def scale_preds(self, predn: dict[str, torch.Tensor], pbatch: dict[str, Any]) -> dict[str, torch.Tensor]:
         """Scales predictions to the original image size."""
@@ -243,6 +243,6 @@ class PoseValidator(DetectionValidator):
 
     def eval_json(self, stats: dict[str, Any]) -> dict[str, Any]:
         """Evaluate object detection model using COCO JSON format."""
-        anno_json = self.data["path"] / "annotations/person_keypoints_val2017.json"  # annotations
-        pred_json = self.save_dir / "predictions.json"  # predictions
+        anno_json = self.data["path"] / "annotations/person_keypoints_val2017.json"
+        pred_json = self.save_dir / "predictions.json"
         return super().coco_evaluate(stats, pred_json, anno_json, ["bbox", "keypoints"], suffix=["Box", "Pose"])

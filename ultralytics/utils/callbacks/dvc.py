@@ -5,8 +5,8 @@ from pathlib import Path
 from ultralytics.utils import LOGGER, SETTINGS, TESTS_RUNNING, checks
 
 try:
-    assert not TESTS_RUNNING  # do not log pytest
-    assert SETTINGS["dvc"] is True  # verify integration is enabled
+    assert not TESTS_RUNNING
+    assert SETTINGS["dvc"] is True
     import dvclive
 
     assert checks.check_version("dvclive", "2.11.0", verbose=True)
@@ -14,12 +14,12 @@ try:
     import os
     import re
 
-    # DVCLive logger instance
+
     live = None
     _processed_plots = {}
 
-    # `on_fit_epoch_end` is called on final validation (probably need to be fixed) for now this is the way we
-    # distinguish final evaluation of the best model vs last epoch validation
+
+
     _training_epoch = False
 
 except (ImportError, AssertionError, TypeError):
@@ -44,7 +44,7 @@ def _log_images(path: Path, prefix: str = "") -> None:
     if live:
         name = path.name
 
-        # Group images by batch to enable sliders in UI
+
         if m := re.search(r"_batch(\d+)", name):
             ni = m[1]
             new_stem = re.sub(r"_batch(\d+)", "_batch", path.stem)
@@ -168,7 +168,7 @@ def on_train_end(trainer) -> None:
         >>> on_train_end(trainer)  # Log final metrics and artifacts
     """
     if live:
-        # At the end log the best metrics. It runs validator on the best model internally.
+
         all_metrics = {**trainer.label_loss_items(trainer.tloss, prefix="train"), **trainer.metrics, **trainer.lr}
         for metric, value in all_metrics.items():
             live.log_metric(metric, value, plot=False)

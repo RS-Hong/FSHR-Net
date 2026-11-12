@@ -162,7 +162,7 @@ class Colors:
         return tuple(int(h[1 + i : 1 + i + 2], 16) for i in (0, 2, 4))
 
 
-colors = Colors()  # create instance for 'from utils.plots import colors'
+colors = Colors()
 
 
 class Annotator:
@@ -196,20 +196,20 @@ class Annotator:
         example: str = "abc",
     ):
         """Initialize the Annotator class with image and line width along with color palette for keypoints and limbs."""
-        non_ascii = not is_ascii(example)  # non-latin labels, i.e. asian, arabic, cyrillic
+        non_ascii = not is_ascii(example)
         input_is_pil = isinstance(im, Image.Image)
         self.pil = pil or non_ascii or input_is_pil
         self.lw = line_width or max(round(sum(im.size if input_is_pil else im.shape) / 2 * 0.003), 2)
         if not input_is_pil:
-            if im.shape[2] == 1:  # handle grayscale
+            if im.shape[2] == 1:
                 im = cv2.cvtColor(im, cv2.COLOR_GRAY2BGR)
-            elif im.shape[2] == 2:  # handle 2-channel images
+            elif im.shape[2] == 2:
                 im = np.ascontiguousarray(np.dstack((im, np.zeros_like(im[..., :1]))))
-            elif im.shape[2] > 3:  # multispectral
+            elif im.shape[2] > 3:
                 im = np.ascontiguousarray(im[..., :3])
-        if self.pil:  # use PIL
-            self.im = im if input_is_pil else Image.fromarray(im)  # stay in BGR since color palette is in BGR
-            if self.im.mode not in {"RGB", "RGBA"}:  # multispectral
+        if self.pil:
+            self.im = im if input_is_pil else Image.fromarray(im)
+            if self.im.mode not in {"RGB", "RGBA"}:
                 self.im = self.im.convert("RGB")
             self.draw = ImageDraw.Draw(self.im, "RGBA")
             try:
@@ -218,15 +218,15 @@ class Annotator:
                 self.font = ImageFont.truetype(str(font), size)
             except Exception:
                 self.font = ImageFont.load_default()
-            # Deprecation fix for w, h = getsize(string) -> _, _, w, h = getbox(string)
+
             if check_version(pil_version, "9.2.0"):
-                self.font.getsize = lambda x: self.font.getbbox(x)[2:4]  # text width, height
-        else:  # use cv2
+                self.font.getsize = lambda x: self.font.getbbox(x)[2:4]
+        else:
             assert im.data.contiguous, "Image not contiguous. Apply np.ascontiguousarray(im) to Annotator input images."
             self.im = im if im.flags.writeable else im.copy()
-            self.tf = max(self.lw - 1, 1)  # font thickness
-            self.sf = self.lw / 3  # font scale
-        # Pose
+            self.tf = max(self.lw - 1, 1)
+            self.sf = self.lw / 3
+
         self.skeleton = [
             [16, 14],
             [14, 12],
@@ -318,37 +318,37 @@ class Annotator:
         if isinstance(box, torch.Tensor):
             box = box.tolist()
 
-        multi_points = isinstance(box[0], list)  # multiple points with shape (n, 2)
+        multi_points = isinstance(box[0], list)
         p1 = [int(b) for b in box[0]] if multi_points else (int(box[0]), int(box[1]))
         if self.pil:
             self.draw.polygon(
                 [tuple(b) for b in box], width=self.lw, outline=color
             ) if multi_points else self.draw.rectangle(box, width=self.lw, outline=color)
             if label:
-                w, h = self.font.getsize(label)  # text width, height
-                outside = p1[1] >= h  # label fits outside box
-                if p1[0] > self.im.size[0] - w:  # size is (w, h), check if label extend beyond right side of image
+                w, h = self.font.getsize(label)
+                outside = p1[1] >= h
+                if p1[0] > self.im.size[0] - w:
                     p1 = self.im.size[0] - w, p1[1]
                 self.draw.rectangle(
                     (p1[0], p1[1] - h if outside else p1[1], p1[0] + w + 1, p1[1] + 1 if outside else p1[1] + h + 1),
                     fill=color,
                 )
-                # self.draw.text([box[0], box[1]], label, fill=txt_color, font=self.font, anchor='ls')  # for PIL>8.0
+
                 self.draw.text((p1[0], p1[1] - h if outside else p1[1]), label, fill=txt_color, font=self.font)
-        else:  # cv2
+        else:
             cv2.polylines(
                 self.im, [np.asarray(box, dtype=int)], True, color, self.lw
             ) if multi_points else cv2.rectangle(
                 self.im, p1, (int(box[2]), int(box[3])), color, thickness=self.lw, lineType=cv2.LINE_AA
             )
             if label:
-                w, h = cv2.getTextSize(label, 0, fontScale=self.sf, thickness=self.tf)[0]  # text width, height
-                h += 3  # add pixels to pad text
-                outside = p1[1] >= h  # label fits outside box
-                if p1[0] > self.im.shape[1] - w:  # shape is (h, w), check if label extend beyond right side of image
+                w, h = cv2.getTextSize(label, 0, fontScale=self.sf, thickness=self.tf)[0]
+                h += 3
+                outside = p1[1] >= h
+                if p1[0] > self.im.shape[1] - w:
                     p1 = self.im.shape[1] - w, p1[1]
                 p2 = p1[0] + w, p1[1] - h if outside else p1[1] + h
-                cv2.rectangle(self.im, p1, p2, color, -1, cv2.LINE_AA)  # filled
+                cv2.rectangle(self.im, p1, p2, color, -1, cv2.LINE_AA)
                 cv2.putText(
                     self.im,
                     label,
@@ -371,7 +371,7 @@ class Annotator:
             retina_masks (bool, optional): Whether to use high resolution masks or not.
         """
         if self.pil:
-            # Convert to numpy first
+
             self.im = np.asarray(self.im).copy()
         if im_gpu is None:
             assert isinstance(masks, np.ndarray), "`masks` must be a np.ndarray if `im_gpu` is not provided."
@@ -389,25 +389,25 @@ class Annotator:
 
             ih, iw = self.im.shape[:2]
             if not retina_masks:
-                # Use scale_masks to properly remove padding and upsample, convert bool to float first
+
                 masks = ops.scale_masks(masks[None].float(), (ih, iw))[0] > 0.5
-                # Convert original BGR image to RGB tensor
+
                 im_gpu = (
                     torch.from_numpy(self.im).to(masks.device).permute(2, 0, 1).flip(0).contiguous().float() / 255.0
                 )
 
-            colors = torch.tensor(colors, device=masks.device, dtype=torch.float32) / 255.0  # shape(n,3)
-            colors = colors[:, None, None]  # shape(n,1,1,3)
-            masks = masks.unsqueeze(3)  # shape(n,h,w,1)
-            masks_color = masks * (colors * alpha)  # shape(n,h,w,3)
-            inv_alpha_masks = (1 - masks * alpha).cumprod(0)  # shape(n,h,w,1)
-            mcs = masks_color.max(dim=0).values  # shape(h,w,3)
+            colors = torch.tensor(colors, device=masks.device, dtype=torch.float32) / 255.0
+            colors = colors[:, None, None]
+            masks = masks.unsqueeze(3)
+            masks_color = masks * (colors * alpha)
+            inv_alpha_masks = (1 - masks * alpha).cumprod(0)
+            mcs = masks_color.max(dim=0).values
 
-            im_gpu = im_gpu.flip(dims=[0]).permute(1, 2, 0).contiguous()  # shape(h,w,3)
+            im_gpu = im_gpu.flip(dims=[0]).permute(1, 2, 0).contiguous()
             im_gpu = im_gpu * inv_alpha_masks[-1] + mcs
             self.im[:] = (im_gpu * 255).byte().cpu().numpy()
         if self.pil:
-            # Convert im back to PIL and update draw
+
             self.fromarray(self.im)
 
     def kpts(
@@ -436,11 +436,11 @@ class Annotator:
         """
         radius = radius if radius is not None else self.lw
         if self.pil:
-            # Convert to numpy first
+
             self.im = np.asarray(self.im).copy()
         nkpt, ndim = kpts.shape
         is_pose = nkpt == 17 and ndim in {2, 3}
-        kpt_line &= is_pose  # `kpt_line=True` for now only supports human pose plotting
+        kpt_line &= is_pose
         for i, k in enumerate(kpts):
             color_k = kpt_color or (self.kpt_color[i].tolist() if is_pose else colors(i))
             x_coord, y_coord = k[0], k[1]
@@ -474,7 +474,7 @@ class Annotator:
                     lineType=cv2.LINE_AA,
                 )
         if self.pil:
-            # Convert im back to PIL and update draw
+
             self.fromarray(self.im)
 
     def rectangle(self, xy, fill=None, outline=None, width: int = 1):
@@ -493,11 +493,11 @@ class Annotator:
         """
         if self.pil:
             w, h = self.font.getsize(text)
-            if anchor == "bottom":  # start y from font bottom
+            if anchor == "bottom":
                 xy[1] += 1 - h
             for line in text.split("\n"):
                 if box_color:
-                    # Draw rectangle for each line
+
                     w, h = self.font.getsize(line)
                     self.draw.rectangle((xy[0], xy[1], xy[0] + w + 1, xy[1] + h + 1), fill=box_color)
                 self.draw.text(xy, line, fill=txt_color, font=self.font)
@@ -505,10 +505,10 @@ class Annotator:
         else:
             if box_color:
                 w, h = cv2.getTextSize(text, 0, fontScale=self.sf, thickness=self.tf)[0]
-                h += 3  # add pixels to pad text
-                outside = xy[1] >= h  # label fits outside box
+                h += 3
+                outside = xy[1] >= h
                 p2 = xy[0] + w, xy[1] - h if outside else xy[1] + h
-                cv2.rectangle(self.im, xy, p2, box_color, -1, cv2.LINE_AA)  # filled
+                cv2.rectangle(self.im, xy, p2, box_color, -1, cv2.LINE_AA)
             cv2.putText(self.im, text, xy, 0, self.sf, txt_color, thickness=self.tf, lineType=cv2.LINE_AA)
 
     def fromarray(self, im):
@@ -518,13 +518,13 @@ class Annotator:
 
     def result(self, pil=False):
         """Return annotated image as array or PIL image."""
-        im = np.asarray(self.im)  # self.im is in BGR
+        im = np.asarray(self.im)
         return Image.fromarray(im[..., ::-1]) if pil else im
 
     def show(self, title: str | None = None):
         """Show the annotated image."""
-        im = Image.fromarray(np.asarray(self.im)[..., ::-1])  # Convert BGR NumPy array to RGB PIL Image
-        if IS_COLAB or IS_KAGGLE:  # cannot use IS_JUPYTER as it runs for all IPython environments
+        im = Image.fromarray(np.asarray(self.im)[..., ::-1])
+        if IS_COLAB or IS_KAGGLE:
             try:
                 display(im)  # noqa - display() function only available in ipython environments
             except ImportError as e:
@@ -572,17 +572,17 @@ def plot_labels(boxes, cls, names=(), save_dir=Path(""), on_plot=None):
         save_dir (Path, optional): Directory to save the plot.
         on_plot (Callable, optional): Function to call after plot is saved.
     """
-    import matplotlib.pyplot as plt  # scope for faster 'import ultralytics'
+    import matplotlib.pyplot as plt
     import polars
     from matplotlib.colors import LinearSegmentedColormap
 
-    # Plot dataset labels
+
     LOGGER.info(f"Plotting labels to {save_dir / 'labels.jpg'}... ")
-    nc = int(cls.max() + 1)  # number of classes
-    boxes = boxes[:1000000]  # limit to 1M boxes
+    nc = int(cls.max() + 1)
+    boxes = boxes[:1000000]
     x = polars.DataFrame(boxes, schema=["x", "y", "width", "height"])
 
-    # Matplotlib labels
+
     subplot_3_4_color = LinearSegmentedColormap.from_list("white_blue", ["white", "blue"])
     ax = plt.subplots(2, 2, figsize=(8, 8), tight_layout=True)[1].ravel()
     y = ax[0].hist(cls, bins=np.linspace(0, nc, nc + 1) - 0.5, rwidth=0.8)
@@ -598,7 +598,7 @@ def plot_labels(boxes, cls, names=(), save_dir=Path(""), on_plot=None):
     boxes = np.column_stack([0.5 - boxes[:, 2:4] / 2, 0.5 + boxes[:, 2:4] / 2]) * 1000
     img = Image.fromarray(np.ones((1000, 1000, 3), dtype=np.uint8) * 255)
     for class_id, box in zip(cls[:500], boxes[:500]):
-        ImageDraw.Draw(img).rectangle(box.tolist(), width=1, outline=colors(class_id))  # plot
+        ImageDraw.Draw(img).rectangle(box.tolist(), width=1, outline=colors(class_id))
     ax[1].imshow(img)
     ax[1].axis("off")
 
@@ -654,22 +654,22 @@ def save_one_box(
         >>> im = cv2.imread("image.jpg")
         >>> cropped_im = save_one_box(xyxy, im, file="cropped.jpg", square=True)
     """
-    if not isinstance(xyxy, torch.Tensor):  # may be list
+    if not isinstance(xyxy, torch.Tensor):
         xyxy = torch.stack(xyxy)
-    b = ops.xyxy2xywh(xyxy.view(-1, 4))  # boxes
+    b = ops.xyxy2xywh(xyxy.view(-1, 4))
     if square:
-        b[:, 2:] = b[:, 2:].max(1)[0].unsqueeze(1)  # attempt rectangle to square
-    b[:, 2:] = b[:, 2:] * gain + pad  # box wh * gain + pad
+        b[:, 2:] = b[:, 2:].max(1)[0].unsqueeze(1)
+    b[:, 2:] = b[:, 2:] * gain + pad
     xyxy = ops.xywh2xyxy(b).long()
     xyxy = ops.clip_boxes(xyxy, im.shape)
-    grayscale = im.shape[2] == 1  # grayscale image
+    grayscale = im.shape[2] == 1
     crop = im[int(xyxy[0, 1]) : int(xyxy[0, 3]), int(xyxy[0, 0]) : int(xyxy[0, 2]), :: (1 if BGR or grayscale else -1)]
     if save:
-        file.parent.mkdir(parents=True, exist_ok=True)  # make directory
+        file.parent.mkdir(parents=True, exist_ok=True)
         f = str(increment_path(file).with_suffix(".jpg"))
-        # cv2.imwrite(f, crop)  # save BGR, https://github.com/ultralytics/yolov5/issues/7007 chroma subsampling issue
+
         crop = crop.squeeze(-1) if grayscale else crop[..., ::-1] if BGR else crop
-        Image.fromarray(crop).save(f, quality=95, subsampling=0)  # save RGB
+        Image.fromarray(crop).save(f, quality=95, subsampling=0)
     return crop
 
 
@@ -718,7 +718,7 @@ def plot_images(
         if k not in labels:
             continue
         if k == "cls" and labels[k].ndim == 2:
-            labels[k] = labels[k].squeeze(1)  # squeeze if shape is (n, 1)
+            labels[k] = labels[k].squeeze(1)
         if isinstance(labels[k], torch.Tensor):
             labels[k] = labels[k].cpu().numpy()
 
@@ -728,64 +728,64 @@ def plot_images(
     confs = labels.get("conf", None)
     masks = labels.get("masks", np.zeros(0, dtype=np.uint8))
     kpts = labels.get("keypoints", np.zeros(0, dtype=np.float32))
-    images = labels.get("img", images)  # default to input images
+    images = labels.get("img", images)
 
     if len(images) and isinstance(images, torch.Tensor):
         images = images.cpu().float().numpy()
 
-    # Handle 2-ch and n-ch images
+
     c = images.shape[1]
     if c == 2:
         zero = np.zeros_like(images[:, :1])
-        images = np.concatenate((images, zero), axis=1)  # pad 2-ch with a black channel
+        images = np.concatenate((images, zero), axis=1)
     elif c > 3:
-        images = images[:, :3]  # crop multispectral images to first 3 channels
+        images = images[:, :3]
 
-    bs, _, h, w = images.shape  # batch size, _, height, width
-    bs = min(bs, max_subplots)  # limit plot images
-    ns = np.ceil(bs**0.5)  # number of subplots (square)
+    bs, _, h, w = images.shape
+    bs = min(bs, max_subplots)
+    ns = np.ceil(bs**0.5)
     if np.max(images[0]) <= 1:
-        images *= 255  # de-normalise (optional)
+        images *= 255
 
-    # Build Image
-    mosaic = np.full((int(ns * h), int(ns * w), 3), 255, dtype=np.uint8)  # init
+
+    mosaic = np.full((int(ns * h), int(ns * w), 3), 255, dtype=np.uint8)
     for i in range(bs):
-        x, y = int(w * (i // ns)), int(h * (i % ns))  # block origin
+        x, y = int(w * (i // ns)), int(h * (i % ns))
         mosaic[y : y + h, x : x + w, :] = images[i].transpose(1, 2, 0)
 
-    # Resize (optional)
+
     scale = max_size / ns / max(h, w)
     if scale < 1:
         h = math.ceil(scale * h)
         w = math.ceil(scale * w)
         mosaic = cv2.resize(mosaic, tuple(int(x * ns) for x in (w, h)))
 
-    # Annotate
-    fs = int((h + w) * ns * 0.01)  # font size
-    fs = max(fs, 18)  # ensure that the font size is large enough to be easily readable.
+
+    fs = int((h + w) * ns * 0.01)
+    fs = max(fs, 18)
     annotator = Annotator(mosaic, line_width=round(fs / 10), font_size=fs, pil=True, example=str(names))
     for i in range(bs):
-        x, y = int(w * (i // ns)), int(h * (i % ns))  # block origin
-        annotator.rectangle([x, y, x + w, y + h], None, (255, 255, 255), width=2)  # borders
+        x, y = int(w * (i // ns)), int(h * (i % ns))
+        annotator.rectangle([x, y, x + w, y + h], None, (255, 255, 255), width=2)
         if paths:
-            annotator.text([x + 5, y + 5], text=Path(paths[i]).name[:40], txt_color=(220, 220, 220))  # filenames
+            annotator.text([x + 5, y + 5], text=Path(paths[i]).name[:40], txt_color=(220, 220, 220))
         if len(cls) > 0:
             idx = batch_idx == i
             classes = cls[idx].astype("int")
             labels = confs is None
-            conf = confs[idx] if confs is not None else None  # check for confidence presence (label vs pred)
+            conf = confs[idx] if confs is not None else None
 
             if len(bboxes):
                 boxes = bboxes[idx]
                 if len(boxes):
-                    if boxes[:, :4].max() <= 1.1:  # if normalized with tolerance 0.1
-                        boxes[..., [0, 2]] *= w  # scale to pixels
+                    if boxes[:, :4].max() <= 1.1:
+                        boxes[..., [0, 2]] *= w
                         boxes[..., [1, 3]] *= h
-                    elif scale < 1:  # absolute coords need scale if image scales
+                    elif scale < 1:
                         boxes[..., :4] *= scale
                 boxes[..., 0] += x
                 boxes[..., 1] += y
-                is_obb = boxes.shape[-1] == 5  # xywhr
+                is_obb = boxes.shape[-1] == 5
                 boxes = ops.xywhr2xyxyxyxy(boxes) if is_obb else ops.xywh2xyxy(boxes)
                 for j, box in enumerate(boxes.astype(np.int64).tolist()):
                     c = classes[j]
@@ -802,14 +802,14 @@ def plot_images(
                     label = f"{c}" if labels else f"{c} {conf[0]:.1f}"
                     annotator.text([x, y], label, txt_color=color, box_color=(64, 64, 64, 128))
 
-            # Plot keypoints
+
             if len(kpts):
                 kpts_ = kpts[idx].copy()
                 if len(kpts_):
-                    if kpts_[..., 0].max() <= 1.01 or kpts_[..., 1].max() <= 1.01:  # if normalized with tolerance .01
-                        kpts_[..., 0] *= w  # scale to pixels
+                    if kpts_[..., 0].max() <= 1.01 or kpts_[..., 1].max() <= 1.01:
+                        kpts_[..., 0] *= w
                         kpts_[..., 1] *= h
-                    elif scale < 1:  # absolute coords need scale if image scales
+                    elif scale < 1:
                         kpts_ *= scale
                 kpts_[..., 0] += x
                 kpts_[..., 1] += y
@@ -817,12 +817,12 @@ def plot_images(
                     if labels or conf[j] > conf_thres:
                         annotator.kpts(kpts_[j], conf_thres=conf_thres)
 
-            # Plot masks
+
             if len(masks):
-                if idx.shape[0] == masks.shape[0] and masks.max() <= 1:  # overlap_mask=False
+                if idx.shape[0] == masks.shape[0] and masks.max() <= 1:
                     image_masks = masks[idx]
-                else:  # overlap_mask=True
-                    image_masks = masks[[i]]  # (1, 640, 640)
+                else:
+                    image_masks = masks[[i]]
                     nl = idx.sum()
                     index = np.arange(1, nl + 1).reshape((nl, 1, 1))
                     image_masks = (image_masks == index).astype(np.float32)
@@ -847,7 +847,7 @@ def plot_images(
                 annotator.fromarray(im)
     if not save:
         return np.asarray(annotator.im)
-    annotator.im.save(fname)  # save
+    annotator.im.save(fname)
     if on_plot:
         on_plot(fname)
 
@@ -867,7 +867,7 @@ def plot_results(file: str = "path/to/results.csv", dir: str = "", on_plot: Call
         >>> from ultralytics.utils.plotting import plot_results
         >>> plot_results("path/to/results.csv", segment=True)
     """
-    import matplotlib.pyplot as plt  # scope for faster 'import ultralytics'
+    import matplotlib.pyplot as plt
     import polars as pl
     from scipy.ndimage import gaussian_filter1d
 
@@ -894,8 +894,8 @@ def plot_results(file: str = "path/to/results.csv", dir: str = "", on_plot: Call
             x = data.select(data.columns[0]).to_numpy().flatten()
             for i, j in enumerate(columns):
                 y = data.select(j).to_numpy().flatten().astype("float")
-                ax[i].plot(x, y, marker=".", label=f.stem, linewidth=2, markersize=8)  # actual results
-                ax[i].plot(x, gaussian_filter1d(y, sigma=3), ":", label="smooth", linewidth=2)  # smoothing line
+                ax[i].plot(x, y, marker=".", label=f.stem, linewidth=2, markersize=8)
+                ax[i].plot(x, gaussian_filter1d(y, sigma=3), ":", label="smooth", linewidth=2)
                 ax[i].set_title(j, fontsize=12)
         except Exception as e:
             LOGGER.error(f"Plotting error for {f}: {e}")
@@ -923,9 +923,9 @@ def plt_color_scatter(v, f, bins: int = 20, cmap: str = "viridis", alpha: float 
         >>> f = np.random.rand(100)
         >>> plt_color_scatter(v, f)
     """
-    import matplotlib.pyplot as plt  # scope for faster 'import ultralytics'
+    import matplotlib.pyplot as plt
 
-    # Calculate 2D histogram and corresponding colors
+
     hist, xedges, yedges = np.histogram2d(v, f, bins=bins)
     colors = [
         hist[
@@ -935,7 +935,7 @@ def plt_color_scatter(v, f, bins: int = 20, cmap: str = "viridis", alpha: float 
         for i in range(len(v))
     ]
 
-    # Scatter plot
+
     plt.scatter(v, f, c=colors, cmap=cmap, alpha=alpha, edgecolors=edgecolors)
 
 
@@ -952,7 +952,7 @@ def plot_tune_results(csv_file: str = "tune_results.csv", exclude_zero_fitness_p
     Examples:
         >>> plot_tune_results("path/to/tune_results.csv")
     """
-    import matplotlib.pyplot as plt  # scope for faster 'import ultralytics'
+    import matplotlib.pyplot as plt
     import polars as pl
     from scipy.ndimage import gaussian_filter1d
 
@@ -962,47 +962,47 @@ def plot_tune_results(csv_file: str = "tune_results.csv", exclude_zero_fitness_p
         plt.close()
         LOGGER.info(f"Saved {file}")
 
-    # Scatter plots for each hyperparameter
+
     csv_file = Path(csv_file)
     data = pl.read_csv(csv_file, infer_schema_length=None)
     num_metrics_columns = 1
     keys = [x.strip() for x in data.columns][num_metrics_columns:]
     x = data.to_numpy()
-    fitness = x[:, 0]  # fitness
+    fitness = x[:, 0]
     if exclude_zero_fitness_points:
-        mask = fitness > 0  # exclude zero-fitness points
+        mask = fitness > 0
         x, fitness = x[mask], fitness[mask]
     if len(fitness) == 0:
         LOGGER.warning("No valid fitness values to plot (all iterations may have failed)")
         return
-    # Iterative sigma rejection on lower bound only
-    for _ in range(3):  # max 3 iterations
+
+    for _ in range(3):
         mean, std = fitness.mean(), fitness.std()
         lower_bound = mean - 3 * std
         mask = fitness >= lower_bound
-        if mask.all():  # no more outliers
+        if mask.all():
             break
         x, fitness = x[mask], fitness[mask]
-    j = np.argmax(fitness)  # max fitness index
-    n = math.ceil(len(keys) ** 0.5)  # columns and rows in plot
+    j = np.argmax(fitness)
+    n = math.ceil(len(keys) ** 0.5)
     plt.figure(figsize=(10, 10), tight_layout=True)
     for i, k in enumerate(keys):
         v = x[:, i + num_metrics_columns]
-        mu = v[j]  # best single result
+        mu = v[j]
         plt.subplot(n, n, i + 1)
         plt_color_scatter(v, fitness, cmap="viridis", alpha=0.8, edgecolors="none")
         plt.plot(mu, fitness.max(), "k+", markersize=15)
-        plt.title(f"{k} = {mu:.3g}", fontdict={"size": 9})  # limit to 40 characters
-        plt.tick_params(axis="both", labelsize=8)  # Set axis label size to 8
+        plt.title(f"{k} = {mu:.3g}", fontdict={"size": 9})
+        plt.tick_params(axis="both", labelsize=8)
         if i % n != 0:
             plt.yticks([])
     _save_one_file(csv_file.with_name("tune_scatter_plots.png"))
 
-    # Fitness vs iteration
+
     x = range(1, len(fitness) + 1)
     plt.figure(figsize=(10, 6), tight_layout=True)
     plt.plot(x, fitness, marker="o", linestyle="none", label="fitness")
-    plt.plot(x, gaussian_filter1d(fitness, sigma=3), ":", label="smoothed", linewidth=2)  # smoothing line
+    plt.plot(x, gaussian_filter1d(fitness, sigma=3), ":", label="smoothed", linewidth=2)
     plt.title("Fitness vs Iteration")
     plt.xlabel("Iteration")
     plt.ylabel("Fitness")
@@ -1022,26 +1022,26 @@ def feature_visualization(x, module_type: str, stage: int, n: int = 32, save_dir
         n (int, optional): Maximum number of feature maps to plot.
         save_dir (Path, optional): Directory to save results.
     """
-    import matplotlib.pyplot as plt  # scope for faster 'import ultralytics'
+    import matplotlib.pyplot as plt
 
-    for m in {"Detect", "Segment", "Pose", "Classify", "OBB", "RTDETRDecoder"}:  # all model heads
+    for m in {"Detect", "Segment", "Pose", "Classify", "OBB", "RTDETRDecoder"}:
         if m in module_type:
             return
     if isinstance(x, torch.Tensor):
-        _, channels, height, width = x.shape  # batch, channels, height, width
+        _, channels, height, width = x.shape
         if height > 1 and width > 1:
-            f = save_dir / f"stage{stage}_{module_type.rsplit('.', 1)[-1]}_features.png"  # filename
+            f = save_dir / f"stage{stage}_{module_type.rsplit('.', 1)[-1]}_features.png"
 
-            blocks = torch.chunk(x[0].cpu(), channels, dim=0)  # select batch index 0, block by channels
-            n = min(n, channels)  # number of plots
-            _, ax = plt.subplots(math.ceil(n / 8), 8, tight_layout=True)  # 8 rows x n/8 cols
+            blocks = torch.chunk(x[0].cpu(), channels, dim=0)
+            n = min(n, channels)
+            _, ax = plt.subplots(math.ceil(n / 8), 8, tight_layout=True)
             ax = ax.ravel()
             plt.subplots_adjust(wspace=0.05, hspace=0.05)
             for i in range(n):
-                ax[i].imshow(blocks[i].squeeze())  # cmap='gray'
+                ax[i].imshow(blocks[i].squeeze())
                 ax[i].axis("off")
 
             LOGGER.info(f"Saving {f}... ({n}/{channels})")
             plt.savefig(f, dpi=300, bbox_inches="tight")
             plt.close()
-            np.save(str(f.with_suffix(".npy")), x[0].cpu().numpy())  # npy save
+            np.save(str(f.with_suffix(".npy")), x[0].cpu().numpy())

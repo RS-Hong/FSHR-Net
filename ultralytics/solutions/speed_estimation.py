@@ -48,15 +48,15 @@ class SpeedEstimator(BaseSolution):
         """
         super().__init__(**kwargs)
 
-        self.fps = self.CFG["fps"]  # Video frame rate for time calculations
-        self.frame_count = 0  # Global frame counter
-        self.trk_frame_ids = {}  # Track ID → first frame index
-        self.spd = {}  # Final speed per object (km/h), once locked
-        self.trk_hist = {}  # Track ID → deque of (time, position)
-        self.locked_ids = set()  # Track IDs whose speed has been finalized
-        self.max_hist = self.CFG["max_hist"]  # Required frame history before computing speed
-        self.meter_per_pixel = self.CFG["meter_per_pixel"]  # Scene scale, depends on camera details
-        self.max_speed = self.CFG["max_speed"]  # Maximum speed adjustment
+        self.fps = self.CFG["fps"]
+        self.frame_count = 0
+        self.trk_frame_ids = {}
+        self.spd = {}
+        self.trk_hist = {}
+        self.locked_ids = set()
+        self.max_hist = self.CFG["max_hist"]
+        self.meter_per_pixel = self.CFG["meter_per_pixel"]
+        self.max_speed = self.CFG["max_speed"]
 
     def process(self, im0) -> SolutionResults:
         """Process an input frame to estimate object speeds based on tracking data.
@@ -80,35 +80,35 @@ class SpeedEstimator(BaseSolution):
         for box, track_id, _, _ in zip(self.boxes, self.track_ids, self.clss, self.confs):
             self.store_tracking_history(track_id, box)
 
-            if track_id not in self.trk_hist:  # Initialize history if new track found
+            if track_id not in self.trk_hist:
                 self.trk_hist[track_id] = deque(maxlen=self.max_hist)
                 self.trk_frame_ids[track_id] = self.frame_count
 
-            if track_id not in self.locked_ids:  # Update history until speed is locked
+            if track_id not in self.locked_ids:
                 trk_hist = self.trk_hist[track_id]
                 trk_hist.append(self.track_line[-1])
 
-                # Compute and lock speed once enough history is collected
+
                 if len(trk_hist) == self.max_hist:
-                    p0, p1 = trk_hist[0], trk_hist[-1]  # First and last points of track
-                    dt = (self.frame_count - self.trk_frame_ids[track_id]) / self.fps  # Time in seconds
+                    p0, p1 = trk_hist[0], trk_hist[-1]
+                    dt = (self.frame_count - self.trk_frame_ids[track_id]) / self.fps
                     if dt > 0:
-                        dx, dy = p1[0] - p0[0], p1[1] - p0[1]  # Pixel displacement
-                        pixel_distance = sqrt(dx * dx + dy * dy)  # Calculate pixel distance
-                        meters = pixel_distance * self.meter_per_pixel  # Convert to meters
+                        dx, dy = p1[0] - p0[0], p1[1] - p0[1]
+                        pixel_distance = sqrt(dx * dx + dy * dy)
+                        meters = pixel_distance * self.meter_per_pixel
                         self.spd[track_id] = int(
                             min((meters / dt) * 3.6, self.max_speed)
-                        )  # Convert to km/h and store final speed
-                        self.locked_ids.add(track_id)  # Prevent further updates
-                        self.trk_hist.pop(track_id, None)  # Free memory
-                        self.trk_frame_ids.pop(track_id, None)  # Remove frame start reference
+                        )
+                        self.locked_ids.add(track_id)
+                        self.trk_hist.pop(track_id, None)
+                        self.trk_frame_ids.pop(track_id, None)
 
             if track_id in self.spd:
                 speed_label = f"{self.spd[track_id]} km/h"
-                annotator.box_label(box, label=speed_label, color=colors(track_id, True))  # Draw bounding box
+                annotator.box_label(box, label=speed_label, color=colors(track_id, True))
 
         plot_im = annotator.result()
-        self.display_output(plot_im)  # Display output with base class function
+        self.display_output(plot_im)
 
-        # Return results with processed image and tracking summary
+
         return SolutionResults(plot_im=plot_im, total_tracks=len(self.track_ids))

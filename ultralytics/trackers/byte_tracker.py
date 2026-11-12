@@ -62,7 +62,7 @@ class STrack(BaseTrack):
             cls (Any): Class label for the detected object.
         """
         super().__init__()
-        # xywh+idx or xywha+idx
+
         assert len(xywh) in {5, 6}, f"expected 5 or 6 values but got {len(xywh)}"
         self._tlwh = np.asarray(xywh2ltwh(xywh[:4]), dtype=np.float32)
         self.kalman_filter = None
@@ -302,7 +302,7 @@ class BYTETracker:
             feats_second = feats[inds_second]
 
         detections = self.init_track(results, feats_keep)
-        # Add newly detected tracklets to tracked_stracks
+
         unconfirmed = []
         tracked_stracks: list[STrack] = []
         for track in self.tracked_stracks:
@@ -310,12 +310,12 @@ class BYTETracker:
                 unconfirmed.append(track)
             else:
                 tracked_stracks.append(track)
-        # Step 2: First association, with high score detection boxes
+
         strack_pool = self.joint_stracks(tracked_stracks, self.lost_stracks)
-        # Predict the current location with KF
+
         self.multi_predict(strack_pool)
         if hasattr(self, "gmc") and img is not None:
-            # use try-except here to bypass errors from gmc module
+
             try:
                 warp = self.gmc.apply(img, results.xyxy)
             except Exception:
@@ -335,10 +335,10 @@ class BYTETracker:
             else:
                 track.re_activate(det, self.frame_id, new_id=False)
                 refind_stracks.append(track)
-        # Step 3: Second association, with low score detection boxes association the untrack to the low score detections
+
         detections_second = self.init_track(results_second, feats_second)
         r_tracked_stracks = [strack_pool[i] for i in u_track if strack_pool[i].state == TrackState.Tracked]
-        # TODO: consider fusing scores or appearance features for second association.
+
         dists = matching.iou_distance(r_tracked_stracks, detections_second)
         matches, u_track, _u_detection_second = matching.linear_assignment(dists, thresh=0.5)
         for itracked, idet in matches:
@@ -356,7 +356,7 @@ class BYTETracker:
             if track.state != TrackState.Lost:
                 track.mark_lost()
                 lost_stracks.append(track)
-        # Deal with unconfirmed tracks, usually tracks with only one beginning frame
+
         detections = [detections[i] for i in u_detection]
         dists = self.get_dists(unconfirmed, detections)
         matches, u_unconfirmed, u_detection = matching.linear_assignment(dists, thresh=0.7)
@@ -367,14 +367,14 @@ class BYTETracker:
             track = unconfirmed[it]
             track.mark_removed()
             removed_stracks.append(track)
-        # Step 4: Init new stracks
+
         for inew in u_detection:
             track = detections[inew]
             if track.score < self.args.new_track_thresh:
                 continue
             track.activate(self.kalman_filter, self.frame_id)
             activated_stracks.append(track)
-        # Step 5: Update state
+
         for track in self.lost_stracks:
             if self.frame_id - track.end_frame > self.max_time_lost:
                 track.mark_removed()
@@ -389,7 +389,7 @@ class BYTETracker:
         self.tracked_stracks, self.lost_stracks = self.remove_duplicate_stracks(self.tracked_stracks, self.lost_stracks)
         self.removed_stracks.extend(removed_stracks)
         if len(self.removed_stracks) > 1000:
-            self.removed_stracks = self.removed_stracks[-1000:]  # clip removed stracks to 1000 maximum
+            self.removed_stracks = self.removed_stracks[-1000:]
 
         return np.asarray([x.result for x in self.tracked_stracks if x.is_activated], dtype=np.float32)
 

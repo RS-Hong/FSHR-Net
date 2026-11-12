@@ -61,7 +61,7 @@ class InfiniteDataLoader(dataloader.DataLoader):
     def __init__(self, *args: Any, **kwargs: Any):
         """Initialize the InfiniteDataLoader with the same arguments as DataLoader."""
         if not TORCH_2_0:
-            kwargs.pop("prefetch_factor", None)  # not supported by earlier versions
+            kwargs.pop("prefetch_factor", None)
         super().__init__(*args, **kwargs)
         object.__setattr__(self, "batch_sampler", _RepeatSampler(self.batch_sampler))
         self.iterator = super().__iter__()
@@ -80,10 +80,10 @@ class InfiniteDataLoader(dataloader.DataLoader):
         try:
             if not hasattr(self.iterator, "_workers"):
                 return
-            for w in self.iterator._workers:  # force terminate
+            for w in self.iterator._workers:
                 if w.is_alive():
                     w.terminate()
-            self.iterator._shutdown_workers()  # cleanup
+            self.iterator._shutdown_workers()
         except Exception:
             pass
 
@@ -165,24 +165,24 @@ class ContiguousDistributedSampler(torch.utils.data.Sampler):
         self.epoch = 0
         self.shuffle = shuffle
         self.total_size = len(dataset)
-        # ensure all ranks have a sample if batch size >= total size; degenerates to round-robin sampler
+
         self.batch_size = 1 if batch_size >= self.total_size else batch_size
         self.num_batches = math.ceil(self.total_size / self.batch_size)
 
     def _get_rank_indices(self) -> tuple[int, int]:
         """Calculate the start and end sample indices for this rank."""
-        # Calculate which batches this rank handles
+
         batches_per_rank_base = self.num_batches // self.num_replicas
         remainder = self.num_batches % self.num_replicas
 
-        # This rank gets an extra batch if rank < remainder
+
         batches_for_this_rank = batches_per_rank_base + (1 if self.rank < remainder else 0)
 
-        # Calculate starting batch: base position + number of extra batches given to earlier ranks
+
         start_batch = self.rank * batches_per_rank_base + min(self.rank, remainder)
         end_batch = start_batch + batches_for_this_rank
 
-        # Convert batch indices to sample indices
+
         start_idx = start_batch * self.batch_size
         end_idx = min(end_batch * self.batch_size, self.total_size)
 
@@ -237,9 +237,9 @@ def build_yolo_dataset(
         img_path=img_path,
         imgsz=cfg.imgsz,
         batch_size=batch,
-        augment=mode == "train",  # augmentation
-        hyp=cfg,  # TODO: probably add a get_hyps_from_cfg function
-        rect=cfg.rect or rect,  # rectangular batches
+        augment=mode == "train",
+        hyp=cfg,
+        rect=cfg.rect or rect,
         cache=cfg.cache or None,
         single_cls=cfg.single_cls or False,
         stride=stride,
@@ -269,9 +269,9 @@ def build_grounding(
         max_samples=max_samples,
         imgsz=cfg.imgsz,
         batch_size=batch,
-        augment=mode == "train",  # augmentation
-        hyp=cfg,  # TODO: probably add a get_hyps_from_cfg function
-        rect=cfg.rect or rect,  # rectangular batches
+        augment=mode == "train",
+        hyp=cfg,
+        rect=cfg.rect or rect,
         cache=cfg.cache or None,
         single_cls=cfg.single_cls or False,
         stride=stride,
@@ -312,8 +312,8 @@ def build_dataloader(
         >>> dataloader = build_dataloader(dataset, batch=16, workers=4, shuffle=True)
     """
     batch = min(batch, len(dataset))
-    nd = torch.cuda.device_count()  # number of CUDA devices
-    nw = min(os.cpu_count() // max(nd, 1), workers)  # number of workers
+    nd = torch.cuda.device_count()
+    nw = min(os.cpu_count() // max(nd, 1), workers)
     sampler = (
         None
         if rank == -1
@@ -329,7 +329,7 @@ def build_dataloader(
         shuffle=shuffle and sampler is None,
         num_workers=nw,
         sampler=sampler,
-        prefetch_factor=4 if nw > 0 else None,  # increase over default 2
+        prefetch_factor=4 if nw > 0 else None,
         pin_memory=nd > 0 and pin_memory,
         collate_fn=getattr(dataset, "collate_fn", None),
         worker_init_fn=seed_worker,
@@ -362,7 +362,7 @@ def check_source(
         >>> source, webcam, screenshot, from_img, in_memory, tensor = check_source(0)
     """
     webcam, screenshot, from_img, in_memory, tensor = False, False, False, False, False
-    if isinstance(source, (str, int, Path)):  # int for local usb camera
+    if isinstance(source, (str, int, Path)):
         source = str(source)
         source_lower = source.lower()
         is_url = source_lower.startswith(("https://", "http://", "rtsp://", "rtmp://", "tcp://"))
@@ -372,11 +372,11 @@ def check_source(
         webcam = source.isnumeric() or source.endswith(".streams") or (is_url and not is_file)
         screenshot = source_lower == "screen"
         if is_url and is_file:
-            source = check_file(source)  # download
+            source = check_file(source)
     elif isinstance(source, LOADERS):
         in_memory = True
     elif isinstance(source, (list, tuple)):
-        source = autocast_list(source)  # convert all list elements to PIL or np arrays
+        source = autocast_list(source)
         from_img = True
     elif isinstance(source, (Image.Image, np.ndarray)):
         from_img = True
@@ -417,7 +417,7 @@ def load_inference_source(
     source, stream, screenshot, from_img, in_memory, tensor = check_source(source)
     source_type = source.source_type if in_memory else SourceTypes(stream, screenshot, from_img, tensor)
 
-    # DataLoader
+
     if tensor:
         dataset = LoadTensor(source)
     elif in_memory:
@@ -431,7 +431,7 @@ def load_inference_source(
     else:
         dataset = LoadImagesAndVideos(source, batch=batch, vid_stride=vid_stride, channels=channels)
 
-    # Attach source types to the dataset
+
     setattr(dataset, "source_type", source_type)
 
     return dataset

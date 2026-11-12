@@ -18,7 +18,7 @@ from ultralytics.utils.torch_utils import unwrap_model
 def on_pretrain_routine_end(trainer) -> None:
     """Set up model classes and text encoder at the end of the pretrain routine."""
     if RANK in {-1, 0}:
-        # Set class names for evaluation
+
         names = [name.split("/", 1)[0] for name in list(trainer.test_loader.dataset.data["names"].values())]
         unwrap_model(trainer.ema.ema).set_classes(names, cache_clip_model=False)
 
@@ -77,8 +77,8 @@ class WorldTrainer(DetectionTrainer):
         Returns:
             (WorldModel): Initialized WorldModel.
         """
-        # NOTE: This `nc` here is the max number of different text samples in one image, rather than the actual `nc`.
-        # NOTE: Following the official config, nc hard-coded to 80 for now.
+
+
         model = WorldModel(
             cfg["yaml_file"] if isinstance(cfg, dict) else cfg,
             ch=self.data["channels"],
@@ -107,7 +107,7 @@ class WorldTrainer(DetectionTrainer):
             self.args, img_path, batch, self.data, mode=mode, rect=mode == "val", stride=gs, multi_modal=mode == "train"
         )
         if mode == "train":
-            self.set_text_embeddings([dataset], batch)  # cache text embeddings to accelerate training
+            self.set_text_embeddings([dataset], batch)
         return dataset
 
     def set_text_embeddings(self, datasets: list[Any], batch: int | None) -> None:
@@ -164,7 +164,7 @@ class WorldTrainer(DetectionTrainer):
         """Preprocess a batch of images and text for YOLOWorld training."""
         batch = DetectionTrainer.preprocess_batch(self, batch)
 
-        # Add text features
+
         texts = list(itertools.chain(*batch["texts"]))
         txt_feats = torch.stack([self.text_embeddings[text] for text in texts]).to(
             self.device, non_blocking=self.device.type == "cuda"

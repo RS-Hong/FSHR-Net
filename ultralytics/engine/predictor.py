@@ -124,18 +124,18 @@ class BasePredictor:
         self.args = get_cfg(cfg, overrides)
         self.save_dir = get_save_dir(self.args)
         if self.args.conf is None:
-            self.args.conf = 0.25  # default conf=0.25
+            self.args.conf = 0.25
         self.done_warmup = False
         if self.args.show:
             self.args.show = check_imshow(warn=True)
 
-        # Usable if setup is done
+
         self.model = None
-        self.data = self.args.data  # data_dict
+        self.data = self.args.data
         self.imgsz = None
         self.device = None
         self.dataset = None
-        self.vid_writer = {}  # dict of {save_path: video_writer, ...}
+        self.vid_writer = {}
         self.plotted_img = None
         self.source_type = None
         self.seen = 0
@@ -145,7 +145,7 @@ class BasePredictor:
         self.transforms = None
         self.callbacks = _callbacks or callbacks.get_default_callbacks()
         self.txt_path = None
-        self._lock = threading.Lock()  # for automatic thread-safe inference
+        self._lock = threading.Lock()
         callbacks.add_integration_callbacks(self)
 
     def preprocess(self, im: torch.Tensor | list[np.ndarray]) -> torch.Tensor:
@@ -161,15 +161,15 @@ class BasePredictor:
         if not_tensor:
             im = np.stack(self.pre_transform(im))
             if im.shape[-1] == 3:
-                im = im[..., ::-1]  # BGR to RGB
-            im = im.transpose((0, 3, 1, 2))  # BHWC to BCHW, (n, 3, h, w)
-            im = np.ascontiguousarray(im)  # contiguous
+                im = im[..., ::-1]
+            im = im.transpose((0, 3, 1, 2))
+            im = np.ascontiguousarray(im)
             im = torch.from_numpy(im)
 
         im = im.to(self.device)
-        im = im.half() if self.model.fp16 else im.float()  # uint8 to fp16/32
+        im = im.half() if self.model.fp16 else im.float()
         if not_tensor:
-            im /= 255  # 0 - 255 to 0.0 - 1.0
+            im /= 255
         return im
 
     def inference(self, im: torch.Tensor, *args, **kwargs):
@@ -222,7 +222,7 @@ class BasePredictor:
         if stream:
             return self.stream_inference(source, model, *args, **kwargs)
         else:
-            return list(self.stream_inference(source, model, *args, **kwargs))  # merge list of Results into one
+            return list(self.stream_inference(source, model, *args, **kwargs))
 
     def predict_cli(self, source=None, model=None):
         """Method used for Command Line Interface (CLI) prediction.
@@ -241,7 +241,7 @@ class BasePredictor:
             accumulated in memory, which is critical for preventing memory issues during long-running predictions.
         """
         gen = self.stream_inference(source, model)
-        for _ in gen:  # sourcery skip: remove-empty-nested-block, noqa
+        for _ in gen:
             pass
 
     def setup_source(self, source, stride: int | None = None):
@@ -252,7 +252,7 @@ class BasePredictor:
                 inference.
             stride (int, optional): Model stride for image size checking.
         """
-        self.imgsz = check_imgsz(self.args.imgsz, stride=stride or self.model.stride, min_dim=2)  # check image size
+        self.imgsz = check_imgsz(self.args.imgsz, stride=stride or self.model.stride, min_dim=2)
         self.dataset = load_inference_source(
             source=source,
             batch=self.args.batch,
@@ -264,12 +264,12 @@ class BasePredictor:
         if (
             self.source_type.stream
             or self.source_type.screenshot
-            or len(self.dataset) > 1000  # many images
+            or len(self.dataset) > 1000
             or any(getattr(self.dataset, "video_flag", [False]))
-        ):  # long sequence
+        ):
             import torchvision  # noqa (import here triggers torchvision NMS use in nms.py)
 
-            if not getattr(self, "stream", True):  # videos
+            if not getattr(self, "stream", True):
                 LOGGER.warning(STREAM_WARNING)
         self.vid_writer = {}
 
@@ -290,19 +290,19 @@ class BasePredictor:
         if self.args.verbose:
             LOGGER.info("")
 
-        # Setup model
+
         if not self.model:
             self.setup_model(model)
 
-        with self._lock:  # for thread-safe inference
-            # Setup source every time predict is called
+        with self._lock:
+
             self.setup_source(source if source is not None else self.args.source)
 
-            # Check if save_dir/ label file exists
+
             if self.args.save or self.args.save_txt:
                 (self.save_dir / "labels" if self.args.save_txt else self.save_dir).mkdir(parents=True, exist_ok=True)
 
-            # Warmup model
+
             if not self.done_warmup:
                 self.model.warmup(
                     imgsz=(1 if self.model.pt or self.model.triton else self.dataset.bs, self.model.ch, *self.imgsz)
@@ -321,23 +321,23 @@ class BasePredictor:
                 self.run_callbacks("on_predict_batch_start")
                 paths, im0s, s = self.batch
 
-                # Preprocess
+
                 with profilers[0]:
                     im = self.preprocess(im0s)
 
-                # Inference
+
                 with profilers[1]:
                     preds = self.inference(im, *args, **kwargs)
                     if self.args.embed:
-                        yield from [preds] if isinstance(preds, torch.Tensor) else preds  # yield embedding tensors
+                        yield from [preds] if isinstance(preds, torch.Tensor) else preds
                         continue
 
-                # Postprocess
+
                 with profilers[2]:
                     self.results = self.postprocess(preds, im, im0s)
                 self.run_callbacks("on_predict_postprocess_end")
 
-                # Visualize, save, write results
+
                 n = len(im0s)
                 try:
                     for i in range(n):
@@ -352,30 +352,30 @@ class BasePredictor:
                 except StopIteration:
                     break
 
-                # Print batch results
+
                 if self.args.verbose:
                     LOGGER.info("\n".join(s))
 
                 self.run_callbacks("on_predict_batch_end")
                 yield from self.results
 
-        # Release assets
+
         for v in self.vid_writer.values():
             if isinstance(v, cv2.VideoWriter):
                 v.release()
 
         if self.args.show:
-            cv2.destroyAllWindows()  # close any open windows
+            cv2.destroyAllWindows()
 
-        # Print final results
+
         if self.args.verbose and self.seen:
-            t = tuple(x.t / self.seen * 1e3 for x in profilers)  # speeds per image
+            t = tuple(x.t / self.seen * 1e3 for x in profilers)
             LOGGER.info(
                 f"Speed: %.1fms preprocess, %.1fms inference, %.1fms postprocess per image at shape "
                 f"{(min(self.args.batch, self.seen), getattr(self.model, 'ch', 3), *im.shape[2:])}" % t
             )
         if self.args.save or self.args.save_txt or self.args.save_crop:
-            nl = len(list(self.save_dir.glob("labels/*.txt")))  # number of labels
+            nl = len(list(self.save_dir.glob("labels/*.txt")))
             s = f"\n{nl} label{'s' * (nl > 1)} saved to {self.save_dir / 'labels'}" if self.args.save_txt else ""
             LOGGER.info(f"Results saved to {colorstr('bold', self.save_dir)}{s}")
         self.run_callbacks("on_predict_end")
@@ -405,10 +405,10 @@ class BasePredictor:
             verbose=verbose,
         )
 
-        self.device = self.model.device  # update device
-        self.args.half = self.model.fp16  # update half
+        self.device = self.model.device
+        self.args.half = self.model.fp16
         if hasattr(self.model, "imgsz") and not getattr(self.model, "dynamic", False):
-            self.args.imgsz = self.model.imgsz  # reuse imgsz from export metadata
+            self.args.imgsz = self.model.imgsz
         self.model.eval()
         if self.model.pt and not self.args.compile:
             report = optimize_prediction(self.model.model)
@@ -433,23 +433,23 @@ class BasePredictor:
         Returns:
             (str): String with result information.
         """
-        string = ""  # print string
+        string = ""
         if len(im.shape) == 3:
-            im = im[None]  # expand for batch dim
-        if self.source_type.stream or self.source_type.from_img or self.source_type.tensor:  # batch_size >= 1
+            im = im[None]
+        if self.source_type.stream or self.source_type.from_img or self.source_type.tensor:
             string += f"{i}: "
             frame = self.dataset.count
         else:
             match = re.search(r"frame (\d+)/", s[i])
-            frame = int(match[1]) if match else None  # 0 if frame undetermined
+            frame = int(match[1]) if match else None
 
         self.txt_path = self.save_dir / "labels" / (p.stem + ("" if self.dataset.mode == "image" else f"_{frame}"))
         string += "{:g}x{:g} ".format(*im.shape[2:])
         result = self.results[i]
-        result.save_dir = self.save_dir.__str__()  # used in other locations
+        result.save_dir = self.save_dir.__str__()
         string += f"{result.verbose()}{result.speed['inference']:.1f}ms"
 
-        # Add predictions to image
+
         if self.args.save or self.args.show:
             self.plotted_img = result.plot(
                 line_width=self.args.line_width,
@@ -459,7 +459,7 @@ class BasePredictor:
                 im_gpu=None if self.args.retina_masks else im[i],
             )
 
-        # Save results
+
         if self.args.save_txt:
             result.save_txt(f"{self.txt_path}.txt", save_conf=self.args.save_conf)
         if self.args.save_crop:
@@ -480,39 +480,39 @@ class BasePredictor:
         """
         im = self.plotted_img
 
-        # Save videos and streams
+
         if self.dataset.mode in {"stream", "video"}:
             fps = self.dataset.fps if self.dataset.mode == "video" else 30
-            frames_path = self.save_dir / f"{save_path.stem}_frames"  # save frames to a separate directory
-            if save_path not in self.vid_writer:  # new video
+            frames_path = self.save_dir / f"{save_path.stem}_frames"
+            if save_path not in self.vid_writer:
                 if self.args.save_frames:
                     Path(frames_path).mkdir(parents=True, exist_ok=True)
                 suffix, fourcc = (".mp4", "avc1") if MACOS else (".avi", "WMV2") if WINDOWS else (".avi", "MJPG")
                 self.vid_writer[save_path] = cv2.VideoWriter(
                     filename=str(Path(save_path).with_suffix(suffix)),
                     fourcc=cv2.VideoWriter_fourcc(*fourcc),
-                    fps=fps,  # integer required, floats produce error in MP4 codec
-                    frameSize=(im.shape[1], im.shape[0]),  # (width, height)
+                    fps=fps,
+                    frameSize=(im.shape[1], im.shape[0]),
                 )
 
-            # Save video
+
             self.vid_writer[save_path].write(im)
             if self.args.save_frames:
                 cv2.imwrite(f"{frames_path}/{save_path.stem}_{frame}.jpg", im)
 
-        # Save images
+
         else:
-            cv2.imwrite(str(save_path.with_suffix(".jpg")), im)  # save to JPG for best support
+            cv2.imwrite(str(save_path.with_suffix(".jpg")), im)
 
     def show(self, p: str = ""):
         """Display an image in a window."""
         im = self.plotted_img
         if platform.system() == "Linux" and p not in self.windows:
             self.windows.append(p)
-            cv2.namedWindow(p, cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO)  # allow window resize (Linux)
-            cv2.resizeWindow(p, im.shape[1], im.shape[0])  # (width, height)
+            cv2.namedWindow(p, cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO)
+            cv2.resizeWindow(p, im.shape[1], im.shape[0])
         cv2.imshow(p, im)
-        if cv2.waitKey(300 if self.dataset.mode == "image" else 1) & 0xFF == ord("q"):  # 300ms if image; else 1ms
+        if cv2.waitKey(300 if self.dataset.mode == "image" else 1) & 0xFF == ord("q"):
             raise StopIteration
 
     def run_callbacks(self, event: str):

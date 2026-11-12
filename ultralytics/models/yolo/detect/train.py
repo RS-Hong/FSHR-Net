@@ -89,7 +89,7 @@ class DetectionTrainer(BaseTrainer):
             (DataLoader): PyTorch dataloader object.
         """
         assert mode in {"train", "val"}, f"Mode must be 'train' or 'val', not {mode}."
-        with torch_distributed_zero_first(rank):  # init dataset *.cache only once if DDP
+        with torch_distributed_zero_first(rank):
             dataset = self.build_dataset(dataset_path, mode, batch_size)
         shuffle = mode == "train"
         if getattr(dataset, "rect", False) and shuffle and not np.all(dataset.batch_shapes == dataset.batch_shapes[0]):
@@ -126,28 +126,28 @@ class DetectionTrainer(BaseTrainer):
                 )
                 // self.stride
                 * self.stride
-            )  # size
-            sf = sz / max(imgs.shape[2:])  # scale factor
+            )
+            sf = sz / max(imgs.shape[2:])
             if sf != 1:
                 ns = [
                     math.ceil(x * sf / self.stride) * self.stride for x in imgs.shape[2:]
-                ]  # new shape (stretched to gs-multiple)
+                ]
                 imgs = nn.functional.interpolate(imgs, size=ns, mode="bilinear", align_corners=False)
             batch["img"] = imgs
         return batch
 
     def set_model_attributes(self):
         """Set model attributes based on dataset information."""
-        # Nl = de_parallel(self.model).model[-1].nl  # number of detection layers (to scale hyps)
-        # self.args.box *= 3 / nl  # scale to layers
-        # self.args.cls *= self.data["nc"] / 80 * 3 / nl  # scale to classes and layers
-        # self.args.cls *= (self.args.imgsz / 640) ** 2 * 3 / nl  # scale to image size and layers
-        self.model.nc = self.data["nc"]  # attach number of classes to model
-        self.model.names = self.data["names"]  # attach class names to model
-        self.model.args = self.args  # attach hyperparameters to model
+
+
+
+
+        self.model.nc = self.data["nc"]
+        self.model.names = self.data["names"]
+        self.model.args = self.args
         if getattr(self.model, "end2end"):
             self.model.set_head_attr(max_det=self.args.max_det)
-        # TODO: self.model.class_weights = labels_to_class_weights(dataset.labels, nc).to(device) * nc
+
 
     def get_model(self, cfg: str | None = None, weights: str | None = None, verbose: bool = True):
         """Return a YOLO detection model.
@@ -184,7 +184,7 @@ class DetectionTrainer(BaseTrainer):
         """
         keys = [f"{prefix}/{x}" for x in self.loss_names]
         if loss_items is not None:
-            loss_items = [round(float(x), 5) for x in loss_items]  # convert tensors to 5 decimal place floats
+            loss_items = [round(float(x), 5) for x in loss_items]
             return dict(zip(keys, loss_items))
         else:
             return keys
@@ -227,6 +227,6 @@ class DetectionTrainer(BaseTrainer):
         """
         with override_configs(self.args, overrides={"cache": False}) as self.args:
             train_dataset = self.build_dataset(self.data["train"], mode="train", batch=16)
-        max_num_obj = max(len(label["cls"]) for label in train_dataset.labels) * 4  # 4 for mosaic augmentation
-        del train_dataset  # free memory
+        max_num_obj = max(len(label["cls"]) for label in train_dataset.labels) * 4
+        del train_dataset
         return super().auto_batch(max_num_obj)

@@ -56,7 +56,7 @@ class DetectionValidator(BaseValidator):
         self.is_lvis = False
         self.class_map = None
         self.args.task = "detect"
-        self.iouv = torch.linspace(0.5, 0.95, 10)  # IoU vector for mAP@0.5:0.95
+        self.iouv = torch.linspace(0.5, 0.95, 10)
         self.niou = self.iouv.numel()
         self.metrics = DetMetrics()
 
@@ -81,15 +81,15 @@ class DetectionValidator(BaseValidator):
         Args:
             model (torch.nn.Module): Model to validate.
         """
-        val = self.data.get(self.args.split, "")  # validation path
+        val = self.data.get(self.args.split, "")
         self.is_coco = (
             isinstance(val, str)
             and "coco" in val
             and (val.endswith(f"{os.sep}val2017.txt") or val.endswith(f"{os.sep}test-dev2017.txt"))
-        )  # is COCO
-        self.is_lvis = isinstance(val, str) and "lvis" in val and not self.is_coco  # is LVIS
+        )
+        self.is_lvis = isinstance(val, str) and "lvis" in val and not self.is_coco
         self.class_map = converter.coco80_to_coco91_class() if self.is_coco else list(range(1, len(model.names) + 1))
-        self.args.save_json |= self.args.val and (self.is_coco or self.is_lvis) and not self.training  # run final val
+        self.args.save_json |= self.args.val and (self.is_coco or self.is_lvis) and not self.training
         self.names = model.names
         self.nc = len(model.names)
         self.end2end = getattr(model, "end2end", False)
@@ -142,7 +142,7 @@ class DetectionValidator(BaseValidator):
         imgsz = batch["img"].shape[2:]
         ratio_pad = batch["ratio_pad"][si]
         if cls.shape[0]:
-            bbox = ops.xywh2xyxy(bbox) * torch.tensor(imgsz, device=self.device)[[1, 0, 1, 0]]  # target boxes
+            bbox = ops.xywh2xyxy(bbox) * torch.tensor(imgsz, device=self.device)[[1, 0, 1, 0]]
         return {
             "cls": cls,
             "bboxes": bbox,
@@ -188,7 +188,7 @@ class DetectionValidator(BaseValidator):
                     "pred_cls": np.zeros(0) if no_pred else predn["cls"].cpu().numpy(),
                 }
             )
-            # Evaluate
+
             if self.args.plots:
                 self.confusion_matrix.process_batch(predn, pbatch, conf=self.args.conf)
                 if self.args.visualize:
@@ -197,7 +197,7 @@ class DetectionValidator(BaseValidator):
             if no_pred:
                 continue
 
-            # Save
+
             if self.args.save_json or self.args.save_txt:
                 predn_scaled = self.scale_preds(predn, pbatch)
             if self.args.save_json:
@@ -234,7 +234,7 @@ class DetectionValidator(BaseValidator):
             for jdict in gathered_jdict:
                 self.jdict.extend(jdict)
             self.metrics.stats = merged_stats
-            self.seen = len(self.dataloader.dataset)  # total image count from dataset
+            self.seen = len(self.dataloader.dataset)
         elif RANK > 0:
             dist.gather_object(self.metrics.stats, None, dst=0)
             dist.gather_object(self.jdict, None, dst=0)
@@ -253,12 +253,12 @@ class DetectionValidator(BaseValidator):
 
     def print_results(self) -> None:
         """Print training/validation set metrics per class."""
-        pf = "%22s" + "%11i" * 2 + "%11.3g" * len(self.metrics.keys)  # print format
+        pf = "%22s" + "%11i" * 2 + "%11.3g" * len(self.metrics.keys)
         LOGGER.info(pf % ("all", self.seen, self.metrics.nt_per_class.sum(), *self.metrics.mean_results()))
         if self.metrics.nt_per_class.sum() == 0:
             LOGGER.warning(f"no labels found in {self.args.task} set, cannot compute metrics without labels")
 
-        # Print results per class
+
         if self.args.verbose and not self.training and self.nc > 1 and len(self.metrics.stats):
             for i, c in enumerate(self.metrics.ap_class_index):
                 LOGGER.info(
@@ -350,11 +350,11 @@ class DetectionValidator(BaseValidator):
         if not preds:
             return
         for i, pred in enumerate(preds):
-            pred["batch_idx"] = torch.ones_like(pred["conf"]) * i  # add batch index to predictions
+            pred["batch_idx"] = torch.ones_like(pred["conf"]) * i
         keys = preds[0].keys()
         max_det = max_det or self.args.max_det
         batched_preds = {k: torch.cat([x[k][:max_det] for x in preds], dim=0) for k in keys}
-        batched_preds["bboxes"] = ops.xyxy2xywh(batched_preds["bboxes"])  # convert to xywh format
+        batched_preds["bboxes"] = ops.xyxy2xywh(batched_preds["bboxes"])
         plot_images(
             images=batch["img"],
             labels=batched_preds,
@@ -362,7 +362,7 @@ class DetectionValidator(BaseValidator):
             fname=self.save_dir / f"val_batch{ni}_pred.jpg",
             names=self.names,
             on_plot=self.on_plot,
-        )  # pred
+        )
 
     def save_one_txt(self, predn: dict[str, torch.Tensor], save_conf: bool, shape: tuple[int, int], file: Path) -> None:
         """Save YOLO detections to a txt file in normalized coordinates in a specific format.
@@ -402,8 +402,8 @@ class DetectionValidator(BaseValidator):
         path = Path(pbatch["im_file"])
         stem = path.stem
         image_id = int(stem) if stem.isnumeric() else stem
-        box = ops.xyxy2xywh(predn["bboxes"])  # xywh
-        box[:, :2] -= box[:, 2:] / 2  # xy center to top-left corner
+        box = ops.xyxy2xywh(predn["bboxes"])
+        box[:, :2] -= box[:, 2:] / 2
         for b, s, c in zip(box.tolist(), predn["conf"].tolist(), predn["cls"].tolist()):
             self.jdict.append(
                 {
@@ -436,12 +436,12 @@ class DetectionValidator(BaseValidator):
         Returns:
             (dict[str, Any]): Updated statistics dictionary with COCO/LVIS evaluation results.
         """
-        pred_json = self.save_dir / "predictions.json"  # predictions
+        pred_json = self.save_dir / "predictions.json"
         anno_json = (
             self.data["path"]
             / "annotations"
             / ("instances_val2017.json" if self.is_coco else f"lvis_v1_{self.args.split}.json")
-        )  # annotations
+        )
         return self.coco_evaluate(stats, pred_json, anno_json)
 
     def coco_evaluate(
@@ -486,19 +486,19 @@ class DetectionValidator(BaseValidator):
                     val = COCOeval_faster(
                         anno, pred, iouType=iou_type, lvis_style=self.is_lvis, print_function=LOGGER.info
                     )
-                    val.params.imgIds = [int(Path(x).stem) for x in self.dataloader.dataset.im_files]  # images to eval
+                    val.params.imgIds = [int(Path(x).stem) for x in self.dataloader.dataset.im_files]
                     val.evaluate()
                     val.accumulate()
                     val.summarize()
 
-                    # update mAP50-95 and mAP50
+
                     stats[f"metrics/mAP50({suffix[i][0]})"] = val.stats_as_dict["AP_50"]
                     stats[f"metrics/mAP50-95({suffix[i][0]})"] = val.stats_as_dict["AP_all"]
-                    # record mAP for small, medium, large objects as well
+
                     stats["metrics/mAP_small(B)"] = val.stats_as_dict["AP_small"]
                     stats["metrics/mAP_medium(B)"] = val.stats_as_dict["AP_medium"]
                     stats["metrics/mAP_large(B)"] = val.stats_as_dict["AP_large"]
-                    # update fitness
+
                     stats["fitness"] = 0.9 * val.stats_as_dict["AP_all"] + 0.1 * val.stats_as_dict["AP_50"]
 
                     if self.is_lvis:
@@ -507,7 +507,7 @@ class DetectionValidator(BaseValidator):
                         stats[f"metrics/APf({suffix[i][0]})"] = val.stats_as_dict["APf"]
 
                 if self.is_lvis:
-                    stats["fitness"] = stats["metrics/mAP50-95(B)"]  # always use box mAP50-95 for fitness
+                    stats["fitness"] = stats["metrics/mAP50-95(B)"]
             except Exception as e:
                 LOGGER.warning(f"faster-coco-eval unable to run: {e}")
         return stats

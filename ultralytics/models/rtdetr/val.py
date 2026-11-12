@@ -12,7 +12,7 @@ from ultralytics.data.augment import Compose, Format, v8_transforms
 from ultralytics.models.yolo.detect import DetectionValidator
 from ultralytics.utils import colorstr, ops
 
-__all__ = ("RTDETRValidator",)  # tuple or list
+__all__ = ("RTDETRValidator",)
 
 
 class RTDETRDataset(YOLODataset):
@@ -85,7 +85,7 @@ class RTDETRDataset(YOLODataset):
             hyp.cutmix = hyp.cutmix if self.augment and not self.rect else 0.0
             transforms = v8_transforms(self, self.imgsz, hyp, stretch=True)
         else:
-            # transforms = Compose([LetterBox(new_shape=(self.imgsz, self.imgsz), auto=False, scale_fill=True)])
+
             transforms = Compose([])
         transforms.append(
             Format(
@@ -143,9 +143,9 @@ class RTDETRValidator(DetectionValidator):
             img_path=img_path,
             imgsz=self.args.imgsz,
             batch_size=batch,
-            augment=False,  # no augmentation
+            augment=False,
             hyp=self.args,
-            rect=False,  # no rect
+            rect=False,
             cache=self.args.cache or None,
             prefix=colorstr(f"{mode}: "),
             data=self.data,
@@ -171,18 +171,18 @@ class RTDETRValidator(DetectionValidator):
                 - 'conf': Tensor of shape (N,) with confidence scores
                 - 'cls': Tensor of shape (N,) with class indices
         """
-        if not isinstance(preds, (list, tuple)):  # list for PyTorch inference but list[0] Tensor for export inference
+        if not isinstance(preds, (list, tuple)):
             preds = [preds, None]
 
         bs, _, nd = preds[0].shape
         bboxes, scores = preds[0].split((4, nd - 4), dim=-1)
         bboxes *= self.args.imgsz
         outputs = [torch.zeros((0, 6), device=bboxes.device)] * bs
-        for i, bbox in enumerate(bboxes):  # (300, 4)
+        for i, bbox in enumerate(bboxes):
             bbox = ops.xywh2xyxy(bbox)
-            score, cls = scores[i].max(-1)  # (300, )
-            pred = torch.cat([bbox, score[..., None], cls[..., None]], dim=-1)  # filter
-            # Sort by confidence to correctly get internal metrics
+            score, cls = scores[i].max(-1)
+            pred = torch.cat([bbox, score[..., None], cls[..., None]], dim=-1)
+
             pred = pred[score.argsort(descending=True)]
             outputs[i] = pred[score > self.args.conf]
 
@@ -200,10 +200,10 @@ class RTDETRValidator(DetectionValidator):
         stem = path.stem
         image_id = int(stem) if stem.isnumeric() else stem
         box = predn["bboxes"].clone()
-        box[..., [0, 2]] *= pbatch["ori_shape"][1] / self.args.imgsz  # native-space pred
-        box[..., [1, 3]] *= pbatch["ori_shape"][0] / self.args.imgsz  # native-space pred
-        box = ops.xyxy2xywh(box)  # xywh
-        box[:, :2] -= box[:, 2:] / 2  # xy center to top-left corner
+        box[..., [0, 2]] *= pbatch["ori_shape"][1] / self.args.imgsz
+        box[..., [1, 3]] *= pbatch["ori_shape"][0] / self.args.imgsz
+        box = ops.xyxy2xywh(box)
+        box[:, :2] -= box[:, 2:] / 2
         for b, s, c in zip(box.tolist(), predn["conf"].tolist(), predn["cls"].tolist()):
             self.jdict.append(
                 {

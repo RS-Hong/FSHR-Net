@@ -116,7 +116,7 @@ class MaskDecoder(nn.Module):
             dense_prompt_embeddings=dense_prompt_embeddings,
         )
 
-        # Select the correct mask or masks for output
+
         mask_slice = slice(1, None) if multimask_output else slice(0, 1)
         masks = masks[:, mask_slice, :, :]
         iou_pred = iou_pred[:, mask_slice]
@@ -131,23 +131,23 @@ class MaskDecoder(nn.Module):
         dense_prompt_embeddings: torch.Tensor,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """Predict masks and quality scores using image and prompt embeddings via transformer architecture."""
-        # Concatenate output tokens
+
         output_tokens = torch.cat([self.iou_token.weight, self.mask_tokens.weight], dim=0)
         output_tokens = output_tokens.unsqueeze(0).expand(sparse_prompt_embeddings.shape[0], -1, -1)
         tokens = torch.cat((output_tokens, sparse_prompt_embeddings), dim=1)
 
-        # Expand per-image data in batch direction to be per-mask
+
         src = torch.repeat_interleave(image_embeddings, tokens.shape[0], dim=0)
         src = src + dense_prompt_embeddings
         pos_src = torch.repeat_interleave(image_pe, tokens.shape[0], dim=0)
         b, c, h, w = src.shape
 
-        # Run the transformer
+
         hs, src = self.transformer(src, pos_src, tokens)
         iou_token_out = hs[:, 0, :]
         mask_tokens_out = hs[:, 1 : (1 + self.num_mask_tokens), :]
 
-        # Upscale mask embeddings and predict masks using the mask tokens
+
         src = src.transpose(1, 2).view(b, c, h, w)
         upscaled_embedding = self.output_upscaling(src)
         hyper_in_list: list[torch.Tensor] = [
@@ -157,7 +157,7 @@ class MaskDecoder(nn.Module):
         b, c, h, w = upscaled_embedding.shape
         masks = (hyper_in @ upscaled_embedding.view(b, c, h * w)).view(b, -1, h, w)
 
-        # Generate mask quality predictions
+
         iou_pred = self.iou_prediction_head(iou_token_out)
 
         return masks, iou_pred
@@ -288,8 +288,8 @@ class SAM2MaskDecoder(nn.Module):
             if pred_obj_scores_mlp:
                 self.pred_obj_score_head = MLP(transformer_dim, transformer_dim, 1, 3)
 
-        # When outputting a single mask, optionally we can dynamically fall back to the best
-        # multimask output token if the single mask output token gives low stability scores.
+
+
         self.dynamic_multimask_via_stability = dynamic_multimask_via_stability
         self.dynamic_multimask_stability_delta = dynamic_multimask_stability_delta
         self.dynamic_multimask_stability_thresh = dynamic_multimask_stability_thresh
@@ -340,7 +340,7 @@ class SAM2MaskDecoder(nn.Module):
             high_res_features=high_res_features,
         )
 
-        # Select the correct mask or masks for output
+
         if multimask_output:
             masks = masks[:, 1:, :, :]
             iou_pred = iou_pred[:, 1:]
@@ -351,14 +351,14 @@ class SAM2MaskDecoder(nn.Module):
             iou_pred = iou_pred[:, 0:1]
 
         if multimask_output and self.use_multimask_token_for_obj_ptr:
-            sam_tokens_out = mask_tokens_out[:, 1:]  # [b, 3, c] shape
+            sam_tokens_out = mask_tokens_out[:, 1:]
         else:
-            # Take the mask output token. Here we *always* use the token for single mask output.
-            # At test time, even if we track after 1-click (and using multimask_output=True),
-            # we still take the single mask token here. The rationale is that we always track
-            # after multiple clicks during training, so the past tokens seen during training
-            # are always the single mask token (and we'll let it be the object-memory token).
-            sam_tokens_out = mask_tokens_out[:, 0:1]  # [b, 1, c] shape
+
+
+
+
+
+            sam_tokens_out = mask_tokens_out[:, 0:1]
 
         return masks, iou_pred, sam_tokens_out, object_score_logits
 
@@ -372,7 +372,7 @@ class SAM2MaskDecoder(nn.Module):
         high_res_features: list[torch.Tensor] | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """Predict instance segmentation masks from image and prompt embeddings using a transformer."""
-        # Concatenate output tokens
+
         s = 0
         if self.pred_obj_scores:
             output_tokens = torch.cat(
@@ -389,7 +389,7 @@ class SAM2MaskDecoder(nn.Module):
         output_tokens = output_tokens.unsqueeze(0).expand(sparse_prompt_embeddings.shape[0], -1, -1)
         tokens = torch.cat((output_tokens, sparse_prompt_embeddings), dim=1)
 
-        # Expand per-image data in batch direction to be per-mask
+
         if repeat_image:
             src = torch.repeat_interleave(image_embeddings, tokens.shape[0], dim=0)
         else:
@@ -400,12 +400,12 @@ class SAM2MaskDecoder(nn.Module):
         pos_src = torch.repeat_interleave(image_pe, tokens.shape[0], dim=0)
         b, c, h, w = src.shape
 
-        # Run the transformer
+
         hs, src = self.transformer(src, pos_src, tokens)
         iou_token_out = hs[:, s, :]
         mask_tokens_out = hs[:, s + 1 : (s + 1 + self.num_mask_tokens), :]
 
-        # Upscale mask embeddings and predict masks using the mask tokens
+
         src = src.transpose(1, 2).view(b, c, h, w)
         if not self.use_high_res_features or high_res_features is None:
             upscaled_embedding = self.output_upscaling(src)
@@ -422,13 +422,13 @@ class SAM2MaskDecoder(nn.Module):
         b, c, h, w = upscaled_embedding.shape
         masks = (hyper_in @ upscaled_embedding.view(b, c, h * w)).view(b, -1, h, w)
 
-        # Generate mask quality predictions
+
         iou_pred = self.iou_prediction_head(iou_token_out)
         if self.pred_obj_scores:
             assert s == 1
             object_score_logits = self.pred_obj_score_head(hs[:, 0, :])
         else:
-            # Obj scores logits - default to 10.0, i.e. assuming the object is present, sigmoid(10)=1
+
             object_score_logits = 10.0 * iou_pred.new_ones(iou_pred.shape[0], 1)
 
         return masks, iou_pred, mask_tokens_out, object_score_logits
@@ -465,7 +465,7 @@ class SAM2MaskDecoder(nn.Module):
             >>> print(mask_logits.shape, iou_scores.shape)
             torch.Size([2, 1, 256, 256]) torch.Size([2, 1])
         """
-        # The best mask from multimask output tokens (1~3)
+
         multimask_logits = all_mask_logits[:, 1:, :, :]
         multimask_iou_scores = all_iou_scores[:, 1:]
         best_scores_inds = torch.argmax(multimask_iou_scores, dim=-1)
@@ -475,13 +475,13 @@ class SAM2MaskDecoder(nn.Module):
         best_multimask_iou_scores = multimask_iou_scores[batch_inds, best_scores_inds]
         best_multimask_iou_scores = best_multimask_iou_scores.unsqueeze(1)
 
-        # The mask from singlemask output token 0 and its stability score
+
         singlemask_logits = all_mask_logits[:, 0:1, :, :]
         singlemask_iou_scores = all_iou_scores[:, 0:1]
         stability_scores = self._get_stability_scores(singlemask_logits)
         is_stable = stability_scores >= self.dynamic_multimask_stability_thresh
 
-        # Dynamically fall back to best multimask output upon low stability scores.
+
         mask_logits_out = torch.where(
             is_stable[..., None, None].expand_as(singlemask_logits),
             singlemask_logits,

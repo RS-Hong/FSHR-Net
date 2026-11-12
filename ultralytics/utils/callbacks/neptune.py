@@ -3,15 +3,15 @@
 from ultralytics.utils import LOGGER, SETTINGS, TESTS_RUNNING
 
 try:
-    assert not TESTS_RUNNING  # do not log pytest
-    assert SETTINGS["neptune"] is True  # verify integration is enabled
+    assert not TESTS_RUNNING
+    assert SETTINGS["neptune"] is True
 
     import neptune
     from neptune.types import File
 
     assert hasattr(neptune, "__version__")
 
-    run = None  # NeptuneAI experiment logger instance
+    run = None
 
 except (ImportError, AssertionError):
     neptune = None
@@ -59,7 +59,7 @@ def _log_plot(title: str, plot_path: str) -> None:
 
     img = mpimg.imread(plot_path)
     fig = plt.figure()
-    ax = fig.add_axes([0, 0, 1, 1], frameon=False, aspect="auto", xticks=[], yticks=[])  # no ticks
+    ax = fig.add_axes([0, 0, 1, 1], frameon=False, aspect="auto", xticks=[], yticks=[])
     ax.imshow(img)
     run[f"Plots/{title}"].upload(fig)
 
@@ -98,18 +98,18 @@ def on_fit_epoch_end(trainer) -> None:
 def on_val_end(validator) -> None:
     """Log validation images at the end of validation."""
     if run:
-        # Log val_labels and val_pred
+
         _log_images({f.stem: str(f) for f in validator.save_dir.glob("val*.jpg")}, "Validation")
 
 
 def on_train_end(trainer) -> None:
     """Log final results, plots, and model weights at the end of training."""
     if run:
-        # Log final results, CM matrix + PR plots
+
         for f in [*trainer.plots.keys(), *trainer.validator.plots.keys()]:
             if "batch" not in f.name:
                 _log_plot(title=f.stem, plot_path=f)
-        # Log the final model
+
         run[f"weights/{trainer.args.name or trainer.args.task}/{trainer.best.name}"].upload(File(str(trainer.best)))
 
 

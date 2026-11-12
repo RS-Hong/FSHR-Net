@@ -32,7 +32,7 @@ class VisionEye(BaseSolution):
             **kwargs (Any): Keyword arguments passed to the parent class and for configuring vision_point.
         """
         super().__init__(**kwargs)
-        # Set the vision point where the system will view objects and draw tracks
+
         self.vision_point = self.CFG["vision_point"]
 
     def process(self, im0) -> SolutionResults:
@@ -52,16 +52,16 @@ class VisionEye(BaseSolution):
             >>> results = vision_eye.process(frame)
             >>> print(f"Detected {results.total_tracks} objects")
         """
-        self.extract_tracks(im0)  # Extract tracks (bounding boxes, classes, and masks)
+        self.extract_tracks(im0)
         annotator = SolutionAnnotator(im0, self.line_width)
 
         for cls, t_id, box, conf in zip(self.clss, self.track_ids, self.boxes, self.confs):
-            # Annotate the image with bounding boxes, labels, and vision mapping
+
             annotator.box_label(box, label=self.adjust_box_label(cls, conf, t_id), color=colors(int(t_id), True))
             annotator.visioneye(box, self.vision_point)
 
         plot_im = annotator.result()
-        self.display_output(plot_im)  # Display the annotated output using the base class function
+        self.display_output(plot_im)
 
-        # Return a SolutionResults object with the annotated image and tracking statistics
+
         return SolutionResults(plot_im=plot_im, total_tracks=len(self.track_ids))

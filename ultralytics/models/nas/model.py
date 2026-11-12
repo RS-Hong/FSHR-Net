@@ -61,7 +61,7 @@ class NAS(Model):
         elif suffix == "":
             self.model = super_gradients.training.models.get(weights, pretrained_weights="coco")
 
-        # Override the forward method to ignore additional arguments
+
         def new_forward(x, *args, **kwargs):
             """Ignore additional __call__ arguments."""
             return self.model._original_forward(x)
@@ -69,15 +69,15 @@ class NAS(Model):
         self.model._original_forward = self.model.forward
         self.model.forward = new_forward
 
-        # Standardize model attributes for compatibility
+
         self.model.fuse = lambda verbose=True: self.model
         self.model.stride = torch.tensor([32])
         self.model.names = dict(enumerate(self.model._class_names))
-        self.model.is_fused = lambda: False  # for info()
-        self.model.yaml = {}  # for info()
-        self.model.pt_path = weights  # for export()
-        self.model.task = "detect"  # for export()
-        self.model.args = {**DEFAULT_CFG_DICT, **self.overrides}  # for export()
+        self.model.is_fused = lambda: False
+        self.model.yaml = {}
+        self.model.pt_path = weights
+        self.model.task = "detect"
+        self.model.args = {**DEFAULT_CFG_DICT, **self.overrides}
         self.model.eval()
 
     def info(self, detailed: bool = False, verbose: bool = True) -> dict[str, Any]:

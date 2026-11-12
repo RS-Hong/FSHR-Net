@@ -76,19 +76,19 @@ def requests_with_progress(method: str, url: str, **kwargs):
           content length.
         - If 'progress' is a number then progress bar will display assuming content length = progress.
     """
-    import requests  # scoped as slow import
+    import requests
 
     progress = kwargs.pop("progress", False)
     if not progress:
         return requests.request(method, url, **kwargs)
     response = requests.request(method, url, stream=True, **kwargs)
-    total = int(response.headers.get("content-length", 0) if isinstance(progress, bool) else progress)  # total size
+    total = int(response.headers.get("content-length", 0) if isinstance(progress, bool) else progress)
     try:
         pbar = TQDM(total=total, unit="B", unit_scale=True, unit_divisor=1024)
         for data in response.iter_content(chunk_size=1024):
             pbar.update(len(data))
         pbar.close()
-    except requests.exceptions.ChunkedEncodingError:  # avoid 'Connection broken: IncompleteRead' warnings
+    except requests.exceptions.ChunkedEncodingError:
         response.close()
     return response
 
@@ -121,18 +121,18 @@ def smart_request(
         (requests.Response | None): The HTTP response object. If the request is executed in a separate thread, returns
             None.
     """
-    retry_codes = (408, 500)  # retry only these codes
+    retry_codes = (408, 500)
 
     @TryExcept(verbose=verbose)
     def func(func_method, func_url, **func_kwargs):
         """Make HTTP requests with retries and timeouts, with optional progress tracking."""
-        r = None  # response
-        t0 = time.time()  # initial time for timer
+        r = None
+        t0 = time.time()
         for i in range(retry + 1):
             if (time.time() - t0) > timeout:
                 break
-            r = requests_with_progress(func_method, func_url, **func_kwargs)  # i.e. get(url, data, json, files)
-            if r.status_code < 300:  # return codes in the 2xx range are generally considered "good" or "successful"
+            r = requests_with_progress(func_method, func_url, **func_kwargs)
+            if r.status_code < 300:
                 break
             try:
                 m = r.json().get("message", "No JSON message.")
@@ -141,8 +141,8 @@ def smart_request(
             if i == 0:
                 if r.status_code in retry_codes:
                     m += f" Retrying {retry}x for {timeout}s." if retry else ""
-                elif r.status_code == 429:  # rate limit
-                    h = r.headers  # response headers
+                elif r.status_code == 429:
+                    h = r.headers
                     m = (
                         f"Rate limit reached ({h['X-RateLimit-Remaining']}/{h['X-RateLimit-Limit']}). "
                         f"Please retry after {h['Retry-After']}s."
@@ -151,7 +151,7 @@ def smart_request(
                     LOGGER.warning(f"{PREFIX}{m} {HELP_MSG} ({r.status_code} #{code})")
                 if r.status_code not in retry_codes:
                     return r
-            time.sleep(2**i)  # exponential standoff
+            time.sleep(2**i)
         return r
 
     args = method, url

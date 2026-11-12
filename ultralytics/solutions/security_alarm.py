@@ -89,23 +89,23 @@ class SecurityAlarm(BaseSolution):
 
         import cv2
 
-        img_bytes = cv2.imencode(".jpg", im0)[1].tobytes()  # Encode the image as JPEG
+        img_bytes = cv2.imencode(".jpg", im0)[1].tobytes()
 
-        # Create the email
+
         message = MIMEMultipart()
         message["From"] = self.from_email
         message["To"] = self.to_email
         message["Subject"] = "Security Alert"
 
-        # Add the text message body
+
         message_body = f"Ultralytics alert: {records} object(s) detected."
         message.attach(MIMEText(message_body))
 
-        # Attach the image
+
         image_attachment = MIMEImage(img_bytes, name="ultralytics.jpg")
         message.attach(image_attachment)
 
-        # Send the email
+
         try:
             self.server.send_message(message)
             LOGGER.info("Email sent successfully!")
@@ -131,21 +131,21 @@ class SecurityAlarm(BaseSolution):
             >>> frame = cv2.imread("path/to/image.jpg")
             >>> results = alarm.process(frame)
         """
-        self.extract_tracks(im0)  # Extract tracks
-        annotator = SolutionAnnotator(im0, line_width=self.line_width)  # Initialize annotator
+        self.extract_tracks(im0)
+        annotator = SolutionAnnotator(im0, line_width=self.line_width)
 
-        # Iterate over bounding boxes and classes index
+
         for box, cls in zip(self.boxes, self.clss):
-            # Draw bounding box
+
             annotator.box_label(box, label=self.names[cls], color=colors(cls, True))
 
         total_det = len(self.clss)
-        if total_det >= self.records and not self.email_sent:  # Only send email if not sent before
+        if total_det >= self.records and not self.email_sent:
             self.send_email(im0, total_det)
             self.email_sent = True
 
         plot_im = annotator.result()
-        self.display_output(plot_im)  # Display output with base class function
+        self.display_output(plot_im)
 
-        # Return a SolutionResults
+
         return SolutionResults(plot_im=plot_im, total_tracks=len(self.track_ids), email_sent=self.email_sent)

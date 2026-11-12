@@ -78,7 +78,7 @@ class SAM(Model):
 
             self.model = build_interactive_sam3(weights)
         else:
-            from .build import build_sam  # slow import
+            from .build import build_sam
 
             self.model = build_sam(weights)
 

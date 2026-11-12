@@ -67,7 +67,7 @@ class ClassificationPredictor(BasePredictor):
                 [self.transforms(Image.fromarray(cv2.cvtColor(im, cv2.COLOR_BGR2RGB))) for im in img], dim=0
             )
         img = (img if isinstance(img, torch.Tensor) else torch.from_numpy(img)).to(self.model.device)
-        return img.half() if self.model.fp16 else img.float()  # Convert uint8 to fp16/32
+        return img.half() if self.model.fp16 else img.float()
 
     def postprocess(self, preds, img, orig_imgs):
         """Process predictions to return Results objects with classification probabilities.
@@ -80,7 +80,7 @@ class ClassificationPredictor(BasePredictor):
         Returns:
             (list[Results]): List of Results objects containing classification results for each image.
         """
-        if not isinstance(orig_imgs, list):  # Input images are a torch.Tensor, not a list
+        if not isinstance(orig_imgs, list):
             orig_imgs = ops.convert_torch2numpy_batch(orig_imgs)[..., ::-1]
 
         preds = preds[0] if isinstance(preds, (list, tuple)) else preds

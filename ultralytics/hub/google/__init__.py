@@ -98,7 +98,7 @@ class GCPRegions:
             >>> region, mean, std, min_lat, max_lat = GCPRegions._ping_region("us-central1", attempts=3)
             >>> print(f"Region {region} has mean latency: {mean:.2f}ms")
         """
-        import requests  # scoped as slow import
+        import requests
 
         url = f"https://{region}-docker.pkg.dev"
         latencies = []
@@ -106,7 +106,7 @@ class GCPRegions:
             try:
                 start_time = time.time()
                 _ = requests.head(url, timeout=5)
-                latency = (time.time() - start_time) * 1000  # Convert latency to milliseconds
+                latency = (time.time() - start_time) * 1000
                 if latency != float("inf"):
                     latencies.append(latency)
             except requests.RequestException:
@@ -168,7 +168,7 @@ class GCPRegions:
         return sorted_results[:top]
 
 
-# Usage example
+
 if __name__ == "__main__":
     regions = GCPRegions()
     top_3_latency_tier1 = regions.lowest_latency(top=3, verbose=True, tier=1, attempts=3)

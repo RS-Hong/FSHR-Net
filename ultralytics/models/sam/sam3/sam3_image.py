@@ -44,8 +44,8 @@ class SAM3SemanticModel(torch.nn.Module):
         use_act_checkpoint_seg_head: bool = True,
         matcher=None,
         use_dot_prod_scoring=True,
-        supervise_joint_box_scores: bool = False,  # only relevant if using presence token/score
-        detach_presence_in_joint_score: bool = False,  # only relevant if using presence token/score
+        supervise_joint_box_scores: bool = False,
+        detach_presence_in_joint_score: bool = False,
         separate_scorer_for_instance: bool = False,
         num_interactive_steps_val: int = 0,
     ):
@@ -82,7 +82,7 @@ class SAM3SemanticModel(torch.nn.Module):
         self.supervise_joint_box_scores = supervise_joint_box_scores
         self.detach_presence_in_joint_score = detach_presence_in_joint_score
 
-        # verify the number of queries for O2O and O2M
+
         num_o2o_static = self.transformer.decoder.num_queries
         num_o2m_static = self.transformer.decoder.num_o2m_queries
         assert num_o2m_static == (num_o2o_static if self.transformer.decoder.dac else 0)
@@ -107,7 +107,7 @@ class SAM3SemanticModel(torch.nn.Module):
         """Encode the geometric and visual prompts."""
         if prev_mask_pred is not None:
             img_feats = [img_feats[-1] + prev_mask_pred]
-        # Encode geometry
+
         geo_feats, geo_masks = self.geometry_encoder(
             geo_prompt=geometric_prompt,
             img_feats=img_feats,
@@ -135,8 +135,8 @@ class SAM3SemanticModel(torch.nn.Module):
         encoder_extra_kwargs: dict | None = None,
     ):
         """Run the transformer encoder."""
-        # Run the encoder
-        # make a copy of the image feature lists since the encoder may modify these lists in-place
+
+
         memory = self.transformer.encoder(
             src=img_feats.copy(),
             src_key_padding_mask=None,
@@ -147,14 +147,14 @@ class SAM3SemanticModel(torch.nn.Module):
             encoder_extra_kwargs=encoder_extra_kwargs,
         )
         encoder_out = {
-            # encoded image features
+
             "encoder_hidden_states": memory["memory"],
             "pos_embed": memory["pos_embed"],
             "padding_mask": memory["padding_mask"],
             "spatial_shapes": memory["spatial_shapes"],
             "valid_ratios": memory["valid_ratios"],
             "vis_feat_sizes": vis_feat_sizes,
-            # encoded text features (or other prompts)
+
             "prompt_before_enc": prompt,
             "prompt_after_enc": memory.get("memory_text", prompt),
             "prompt_mask": prompt_mask,
@@ -189,10 +189,10 @@ class SAM3SemanticModel(torch.nn.Module):
             text_attention_mask=prompt_mask,
             apply_dac=False,
         )
-        hs = hs.transpose(1, 2)  # seq-first to batch-first
-        reference_boxes = reference_boxes.transpose(1, 2)  # seq-first to batch-first
+        hs = hs.transpose(1, 2)
+        reference_boxes = reference_boxes.transpose(1, 2)
         if dec_presence_out is not None:
-            # seq-first to batch-first
+
             dec_presence_out = dec_presence_out.transpose(1, 2)
         self._update_scores_and_boxes(
             out,
@@ -216,7 +216,7 @@ class SAM3SemanticModel(torch.nn.Module):
     ):
         """Update output dict with class scores and box predictions."""
         num_o2o = hs.size(2)
-        # score prediction
+
         if self.use_dot_prod_scoring:
             dot_prod_scoring_head = self.dot_prod_scoring
             if is_instance_prompt and self.instance_dot_prod_scoring is not None:
@@ -228,7 +228,7 @@ class SAM3SemanticModel(torch.nn.Module):
                 class_embed_head = self.instance_class_embed
             outputs_class = class_embed_head(hs)
 
-        # box prediction
+
         box_head = self.transformer.decoder.bbox_embed
         if is_instance_prompt and self.transformer.decoder.instance_bbox_embed is not None:
             box_head = self.transformer.decoder.instance_bbox_embed
@@ -292,20 +292,20 @@ class SAM3SemanticModel(torch.nn.Module):
         backbone_out.update({k: v for k, v in self.text_embeddings.items()})
         with torch.profiler.record_function("SAM3Image._encode_prompt"):
             prompt, prompt_mask = self._encode_prompt(img_feats, img_pos_embeds, vis_feat_sizes, geometric_prompt)
-        # index text features (note that regardless of early or late fusion, the batch size of
-        # `txt_feats` is always the number of *prompts* in the encoder)
+
+
         txt_feats = backbone_out["language_features"][:, text_ids]
         txt_masks = backbone_out["language_mask"][text_ids]
-        # encode text
+
         prompt = torch.cat([txt_feats, prompt], dim=0)
         prompt_mask = torch.cat([txt_masks, prompt_mask], dim=1)
 
-        # Run the encoder
+
         with torch.profiler.record_function("SAM3Image._run_encoder"):
             encoder_out = self._run_encoder(img_feats, img_pos_embeds, vis_feat_sizes, prompt, prompt_mask)
         out = {"backbone_out": backbone_out}
 
-        # Run the decoder
+
         with torch.profiler.record_function("SAM3Image._run_decoder"):
             out, hs = self._run_decoder(
                 memory=encoder_out["encoder_hidden_states"],
@@ -317,7 +317,7 @@ class SAM3SemanticModel(torch.nn.Module):
                 encoder_out=encoder_out,
             )
 
-        # Run segmentation heads
+
         with torch.profiler.record_function("SAM3Image._run_segmentation_heads"):
             self._run_segmentation_heads(
                 out=out,

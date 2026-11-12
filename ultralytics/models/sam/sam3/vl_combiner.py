@@ -40,7 +40,7 @@ class SAM3VLBackbone(nn.Module):
         self.vision_backbone: Sam3DualViTDetNeck = torch.compile(visual) if compile_visual else visual
         self.language_backbone = text
         self.scalp = scalp
-        # allow running activation checkpointing on the entire vision and language backbones
+
         self.act_ckpt_whole_vision_backbone = act_ckpt_whole_vision_backbone
         self.act_ckpt_whole_language_backbone = act_ckpt_whole_language_backbone
 
@@ -75,10 +75,10 @@ class SAM3VLBackbone(nn.Module):
 
     def forward_image(self, samples: torch.Tensor):
         """Forward pass of the vision backbone and get both SAM3 and SAM2 features."""
-        # Forward through backbone
+
         sam3_features, sam3_pos, sam2_features, sam2_pos = self.vision_backbone.forward(samples)
         if self.scalp > 0:
-            # Discard the lowest resolution features
+
             sam3_features, sam3_pos = (
                 sam3_features[: -self.scalp],
                 sam3_pos[: -self.scalp],
@@ -110,13 +110,13 @@ class SAM3VLBackbone(nn.Module):
     def forward_image_sam2(self, samples: torch.Tensor):
         """Forward pass of the vision backbone to get SAM2 features only."""
         xs = self.vision_backbone.trunk(samples)
-        x = xs[-1]  # simpleFPN
+        x = xs[-1]
 
         assert self.vision_backbone.sam2_convs is not None, "SAM2 neck is not available."
         sam2_features, sam2_pos = self.vision_backbone.sam_forward_feature_levels(x, self.vision_backbone.sam2_convs)
 
         if self.scalp > 0:
-            # Discard the lowest resolution features
+
             sam2_features, sam2_pos = (
                 sam2_features[: -self.scalp],
                 sam2_pos[: -self.scalp],
@@ -132,11 +132,11 @@ class SAM3VLBackbone(nn.Module):
         """Forward pass of the text encoder."""
         output = {}
 
-        # Forward through text_encoder
+
         text_to_encode = copy(captions)
         if additional_text is not None:
-            # if there are additional_text, we piggy-back them into this forward.
-            # They'll be used later for output alignment
+
+
             text_to_encode += additional_text
 
         with sdpa_kernel([SDPBackend.MATH, SDPBackend.EFFICIENT_ATTENTION, SDPBackend.FLASH_ATTENTION]):
@@ -151,7 +151,7 @@ class SAM3VLBackbone(nn.Module):
         text_embeds = text_embeds[:, : len(captions)]
         output["language_features"] = text_memory
         output["language_mask"] = text_attention_mask
-        output["language_embeds"] = text_embeds  # Text embeddings before forward to the encoder
+        output["language_embeds"] = text_embeds
 
         return output
 

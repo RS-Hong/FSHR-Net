@@ -30,7 +30,7 @@ def tf_wrapper(model: torch.nn.Module) -> torch.nn.Module:
 
 def _tf_decode_boxes(self, x: dict[str, torch.Tensor]) -> torch.Tensor:
     """Decode bounding boxes for TensorFlow export."""
-    shape = x["feats"][0].shape  # BCHW
+    shape = x["feats"][0].shape
     boxes = x["boxes"]
     if self.format != "imx" and (self.dynamic or self.shape != shape):
         self.anchors, self.strides = (a.transpose(0, 1) for a in make_anchors(x["feats"], self.stride, 0.5))
@@ -46,7 +46,7 @@ def _tf_kpts_decode(self, kpts: torch.Tensor, is_pose26: bool = False) -> torch.
     """Decode keypoints for TensorFlow export."""
     ndim = self.kpt_shape[1]
     bs = kpts.shape[0]
-    # Precompute normalization factor to increase numerical stability
+
     y = kpts.view(bs, *self.kpt_shape, -1)
     grid_h, grid_w = self.shape[2:4]
     grid_size = torch.tensor([grid_w, grid_h], device=y.device).reshape(1, 2, 1)
@@ -82,20 +82,20 @@ def onnx2saved_model(
         - Requires onnx2tf package. Downloads calibration data if INT8 quantization is enabled.
         - Removes temporary files and renames quantized models after conversion.
     """
-    # Pre-download calibration file to fix https://github.com/PINTO0309/onnx2tf/issues/545
+
     onnx2tf_file = Path("calibration_image_sample_data_20x128x128x3_float32.npy")
     if not onnx2tf_file.exists():
         attempt_download_asset(f"{onnx2tf_file}.zip", unzip=True, delete=True)
     np_data = None
     if int8:
-        tmp_file = output_dir / "tmp_tflite_int8_calibration_images.npy"  # int8 calibration images file
+        tmp_file = output_dir / "tmp_tflite_int8_calibration_images.npy"
         if images is not None:
             output_dir.mkdir(parents=True, exist_ok=True)
-            np.save(str(tmp_file), images)  # BHWC
+            np.save(str(tmp_file), images)
             np_data = [["images", tmp_file, [[[[0, 0, 0]]]], [[[[255, 255, 255]]]]]]
 
-    # Patch onnx.helper for onnx_graphsurgeon compatibility with ONNX>=1.17
-    # The float32_to_bfloat16 function was removed in ONNX 1.17, but onnx_graphsurgeon still uses it
+
+
     import onnx.helper
 
     if not hasattr(onnx.helper, "float32_to_bfloat16"):
@@ -108,28 +108,28 @@ def onnx2saved_model(
 
         onnx.helper.float32_to_bfloat16 = float32_to_bfloat16
 
-    import onnx2tf  # scoped for after ONNX export for reduced conflict during import
+    import onnx2tf
 
     LOGGER.info(f"{prefix} starting TFLite export with onnx2tf {onnx2tf.__version__}...")
     keras_model = onnx2tf.convert(
         input_onnx_file_path=onnx_file,
         output_folder_path=str(output_dir),
         not_use_onnxsim=True,
-        verbosity="error",  # note INT8-FP16 activation bug https://github.com/ultralytics/ultralytics/issues/15873
+        verbosity="error",
         output_integer_quantized_tflite=int8,
         custom_input_op_name_np_data_path=np_data,
-        enable_batchmatmul_unfold=True and not int8,  # fix lower no. of detected objects on GPU delegate
-        output_signaturedefs=True,  # fix error with Attention block group convolution
-        disable_group_convolution=disable_group_convolution,  # fix error with group convolution
+        enable_batchmatmul_unfold=True and not int8,
+        output_signaturedefs=True,
+        disable_group_convolution=disable_group_convolution,
     )
 
-    # Remove/rename TFLite models
+
     if int8:
         tmp_file.unlink(missing_ok=True)
         for file in output_dir.rglob("*_dynamic_range_quant.tflite"):
             file.rename(file.with_name(file.stem.replace("_dynamic_range_quant", "_int8") + file.suffix))
         for file in output_dir.rglob("*_integer_quant_with_int16_act.tflite"):
-            file.unlink()  # delete extra fp16 activation TFLite files
+            file.unlink()
     return keras_model
 
 
@@ -148,7 +148,7 @@ def keras2pb(keras_model, file: Path, prefix=""):
     from tensorflow.python.framework.convert_to_constants import convert_variables_to_constants_v2
 
     LOGGER.info(f"\n{prefix} starting export with tensorflow {tf.__version__}...")
-    m = tf.function(lambda x: keras_model(x))  # full model
+    m = tf.function(lambda x: keras_model(x))
     m = m.get_concrete_function(tf.TensorSpec(keras_model.inputs[0].shape, keras_model.inputs[0].dtype))
     frozen_func = convert_variables_to_constants_v2(m)
     frozen_func.graph.as_graph_def()
@@ -203,14 +203,14 @@ def pb2tfjs(pb_file: str, output_dir: str, half: bool = False, int8: bool = Fals
 
     LOGGER.info(f"\n{prefix} starting export with tensorflowjs {tfjs.__version__}...")
 
-    gd = tf.Graph().as_graph_def()  # TF GraphDef
+    gd = tf.Graph().as_graph_def()
     with open(pb_file, "rb") as file:
         gd.ParseFromString(file.read())
     outputs = ",".join(gd_outputs(gd))
     LOGGER.info(f"\n{prefix} output node names: {outputs}")
 
     quantization = "--quantize_float16" if half else "--quantize_uint8" if int8 else ""
-    with spaces_in_path(pb_file) as fpb_, spaces_in_path(output_dir) as f_:  # exporter cannot handle spaces in paths
+    with spaces_in_path(pb_file) as fpb_, spaces_in_path(output_dir) as f_:
         cmd = (
             "tensorflowjs_converter "
             f'--input_format=tf_frozen_model {quantization} --output_node_names={outputs} "{fpb_}" "{f_}"'
@@ -225,7 +225,7 @@ def pb2tfjs(pb_file: str, output_dir: str, half: bool = False, int8: bool = Fals
 def gd_outputs(gd):
     """Return TensorFlow GraphDef model output node names."""
     name_list, input_list = [], []
-    for node in gd.node:  # tensorflow.core.framework.node_def_pb2.NodeDef
+    for node in gd.node:
         name_list.append(node.name)
         input_list.extend(node.input)
     return sorted(f"{x}:0" for x in list(set(name_list) - set(input_list)) if not x.startswith("NoOp"))

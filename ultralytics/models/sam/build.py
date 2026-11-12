@@ -29,7 +29,7 @@ def _load_checkpoint(model, checkpoint):
     checkpoint = attempt_download_asset(checkpoint)
     with open(checkpoint, "rb") as f:
         state_dict = torch_load(f)
-    # Handle nested "model" key
+
     if "model" in state_dict and isinstance(state_dict["model"], dict):
         state_dict = state_dict["model"]
     model.load_state_dict(state_dict)
@@ -354,7 +354,7 @@ def build_sam(ckpt="sam_b.pt"):
         - SAM2: 'sam2_t.pt', 'sam2_s.pt', 'sam2_b.pt', 'sam2_l.pt'
     """
     model_builder = None
-    ckpt = str(ckpt)  # to allow Path ckpt types
+    ckpt = str(ckpt)
     for k in sam_model_map.keys():
         if ckpt.endswith(k):
             model_builder = sam_model_map.get(k)

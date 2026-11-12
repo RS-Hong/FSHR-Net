@@ -4,20 +4,20 @@ from ultralytics.utils import LOGGER, SETTINGS, TESTS_RUNNING, colorstr, torch_u
 from ultralytics.utils.torch_utils import smart_inference_mode
 
 try:
-    assert not TESTS_RUNNING  # do not log pytest
-    assert SETTINGS["tensorboard"] is True  # verify integration is enabled
-    WRITER = None  # TensorBoard SummaryWriter instance
+    assert not TESTS_RUNNING
+    assert SETTINGS["tensorboard"] is True
+    WRITER = None
     PREFIX = colorstr("TensorBoard: ")
 
-    # Imports below only required if TensorBoard enabled
+
     from copy import deepcopy
 
     import torch
     from torch.utils.tensorboard import SummaryWriter
 
 except (ImportError, AssertionError, TypeError, AttributeError):
-    # TypeError for handling 'Descriptors cannot not be created directly.' protobuf errors in Windows
-    # AttributeError: module 'tensorflow' has no attribute 'io' if 'tensorflow' not installed
+
+
     SummaryWriter = None
 
 
@@ -56,29 +56,29 @@ def _log_tensorboard_graph(trainer) -> None:
         It handles potential warnings from the PyTorch JIT tracer and attempts to gracefully handle different
         model architectures.
     """
-    # Input image
+
     imgsz = trainer.args.imgsz
     imgsz = (imgsz, imgsz) if isinstance(imgsz, int) else imgsz
-    p = next(trainer.model.parameters())  # for device, type
-    im = torch.zeros((1, 3, *imgsz), device=p.device, dtype=p.dtype)  # input image (must be zeros, not empty)
+    p = next(trainer.model.parameters())
+    im = torch.zeros((1, 3, *imgsz), device=p.device, dtype=p.dtype)
 
-    # Try simple method first (YOLO)
+
     try:
-        trainer.model.eval()  # place in .eval() mode to avoid BatchNorm statistics changes
+        trainer.model.eval()
         WRITER.add_graph(torch.jit.trace(torch_utils.unwrap_model(trainer.model), im, strict=False), [])
         LOGGER.info(f"{PREFIX}model graph visualization added ✅")
         return
     except Exception as e1:
-        # Fallback to TorchScript export steps (RTDETR)
+
         try:
             model = deepcopy(torch_utils.unwrap_model(trainer.model))
             model.eval()
             model = model.fuse(verbose=False)
             for m in model.modules():
-                if hasattr(m, "export"):  # Detect, RTDETRDecoder (Segment and Pose use Detect base class)
+                if hasattr(m, "export"):
                     m.export = True
                     m.format = "torchscript"
-            model(im)  # dry run
+            model(im)
             WRITER.add_graph(torch.jit.trace(model, im, strict=False), [])
             LOGGER.info(f"{PREFIX}model graph visualization added ✅")
         except Exception as e2:

@@ -39,20 +39,20 @@ def login(api_key: str | None = None, save: bool = True) -> bool:
     checks.check_requirements("hub-sdk>=0.0.12")
     from hub_sdk import HUBClient
 
-    api_key_url = f"{HUB_WEB_ROOT}/settings?tab=api+keys"  # set the redirect URL
+    api_key_url = f"{HUB_WEB_ROOT}/settings?tab=api+keys"
     saved_key = SETTINGS.get("api_key")
     active_key = api_key or saved_key
-    credentials = {"api_key": active_key} if active_key and active_key != "" else None  # set credentials
+    credentials = {"api_key": active_key} if active_key and active_key != "" else None
 
-    client = HUBClient(credentials)  # initialize HUBClient
+    client = HUBClient(credentials)
 
     if client.authenticated:
-        # Successfully authenticated with HUB
+
 
         if save and client.api_key != saved_key:
-            SETTINGS.update({"api_key": client.api_key})  # update settings with valid API key
+            SETTINGS.update({"api_key": client.api_key})
 
-        # Set message based on whether key was provided or retrieved from settings
+
         log_message = (
             "New authentication successful ✅" if client.api_key == api_key or not credentials else "Authenticated ✅"
         )
@@ -60,7 +60,7 @@ def login(api_key: str | None = None, save: bool = True) -> bool:
 
         return True
     else:
-        # Failed to authenticate with HUB
+
         LOGGER.info(f"{PREFIX}Get API key from {api_key_url} and then run 'yolo login API_KEY'")
         return False
 
@@ -73,7 +73,7 @@ def logout():
 
 def reset_model(model_id: str = ""):
     """Reset a trained model to an untrained state."""
-    import requests  # scoped as slow import
+    import requests
 
     r = requests.post(f"{HUB_API_ROOT}/model-reset", json={"modelId": model_id}, headers={"x-api-key": Auth().api_key})
     if r.status_code == 200:
@@ -104,7 +104,7 @@ def export_model(model_id: str = "", format: str = "torchscript"):
         >>> from ultralytics import hub
         >>> hub.export_model(model_id="your_model_id", format="torchscript")
     """
-    import requests  # scoped as slow import
+    import requests
 
     assert format in export_fmts_hub(), f"Unsupported export format '{format}', valid formats are {export_fmts_hub()}"
     r = requests.post(
@@ -131,7 +131,7 @@ def get_export(model_id: str = "", format: str = "torchscript"):
         >>> from ultralytics import hub
         >>> result = hub.get_export(model_id="your_model_id", format="torchscript")
     """
-    import requests  # scoped as slow import
+    import requests
 
     assert format in export_fmts_hub(), f"Unsupported export format '{format}', valid formats are {export_fmts_hub()}"
     r = requests.post(

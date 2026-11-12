@@ -16,7 +16,7 @@ from ultralytics.utils.torch_utils import get_cpu_info
 def _post(url: str, data: dict, timeout: float = 5.0) -> None:
     """Send a one-shot JSON POST request."""
     try:
-        body = json.dumps(data, separators=(",", ":")).encode()  # compact JSON
+        body = json.dumps(data, separators=(",", ":")).encode()
         req = Request(url, data=body, headers={"Content-Type": "application/json"})
         urlopen(req, timeout=timeout).close()
     except Exception:
@@ -47,15 +47,15 @@ class Events:
 
     def __init__(self) -> None:
         """Initialize the Events instance with queue, rate limiter, and environment metadata."""
-        self.events = []  # pending events
-        self.rate_limit = 30.0  # rate limit (seconds)
-        self.t = 0.0  # last send timestamp (seconds)
+        self.events = []
+        self.rate_limit = 30.0
+        self.t = 0.0
         self.metadata = {
             "cli": Path(ARGV[0]).name == "yolo",
             "install": "git" if GIT.is_repo else "pip" if IS_PIP_PACKAGE else "other",
-            "python": PYTHON_VERSION.rsplit(".", 1)[0],  # i.e. 3.13
+            "python": PYTHON_VERSION.rsplit(".", 1)[0],
             "CPU": get_cpu_info(),
-            # "GPU": get_gpu_info(index=0) if cuda else None,
+
             "version": __version__,
             "env": ENVIRONMENT,
             "session_id": round(random.random() * 1e15),
@@ -77,11 +77,11 @@ class Events:
             device (torch.device | str, optional): The device type (e.g., 'cpu', 'cuda').
         """
         if not self.enabled:
-            # Events disabled, do nothing
+
             return
 
-        # Attempt to enqueue a new event
-        if len(self.events) < 25:  # Queue limited to 25 events to bound memory and traffic
+
+        if len(self.events) < 25:
             params = {
                 **self.metadata,
                 "task": cfg.task,
@@ -92,20 +92,20 @@ class Events:
                 params["format"] = cfg.format
             self.events.append({"name": cfg.mode, "params": params})
 
-        # Check rate limit and return early if under limit
+
         t = time.time()
         if (t - self.t) < self.rate_limit:
             return
 
-        # Overrate limit: send a snapshot of queued events in a background thread
-        payload_events = list(self.events)  # snapshot to avoid race with queue reset
+
+        payload_events = list(self.events)
         Thread(
             target=_post,
-            args=(self.url, {"client_id": SETTINGS["uuid"], "events": payload_events}),  # SHA-256 anonymized
+            args=(self.url, {"client_id": SETTINGS["uuid"], "events": payload_events}),
             daemon=True,
         ).start()
 
-        # Reset queue and rate limit timer
+
         self.events = []
         self.t = t
 

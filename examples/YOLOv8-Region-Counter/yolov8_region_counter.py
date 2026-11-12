@@ -22,19 +22,19 @@ current_region = None
 counting_regions = [
     {
         "name": "Ultralytics YOLO Polygon Region",
-        "polygon": Polygon([(50, 80), (250, 20), (450, 80), (400, 350), (100, 350)]),  # Polygon points
+        "polygon": Polygon([(50, 80), (250, 20), (450, 80), (400, 350), (100, 350)]),
         "counts": 0,
         "dragging": False,
-        "region_color": (255, 42, 4),  # BGR Value
-        "text_color": (255, 255, 255),  # Region Text Color
+        "region_color": (255, 42, 4),
+        "text_color": (255, 255, 255),
     },
     {
         "name": "Ultralytics YOLO Rectangle Region",
-        "polygon": Polygon([(200, 250), (440, 250), (440, 550), (200, 550)]),  # Polygon points
+        "polygon": Polygon([(200, 250), (440, 250), (440, 550), (200, 550)]),
         "counts": 0,
         "dragging": False,
-        "region_color": (37, 255, 225),  # BGR Value
-        "text_color": (0, 0, 0),  # Region Text Color
+        "region_color": (37, 255, 225),
+        "text_color": (0, 0, 0),
     },
 ]
 
@@ -58,7 +58,7 @@ def mouse_callback(event: int, x: int, y: int, flags: int, param: Any) -> None:
     """
     global current_region
 
-    # Mouse left button down event
+
     if event == cv2.EVENT_LBUTTONDOWN:
         for region in counting_regions:
             if region["polygon"].contains(Point((x, y))):
@@ -67,7 +67,7 @@ def mouse_callback(event: int, x: int, y: int, flags: int, param: Any) -> None:
                 current_region["offset_x"] = x
                 current_region["offset_y"] = y
 
-    # Mouse move event
+
     elif event == cv2.EVENT_MOUSEMOVE:
         if current_region is not None and current_region["dragging"]:
             dx = x - current_region["offset_x"]
@@ -78,7 +78,7 @@ def mouse_callback(event: int, x: int, y: int, flags: int, param: Any) -> None:
             current_region["offset_x"] = x
             current_region["offset_y"] = y
 
-    # Mouse left button up event
+
     elif event == cv2.EVENT_LBUTTONUP:
         if current_region is not None and current_region["dragging"]:
             current_region["dragging"] = False
@@ -123,37 +123,37 @@ def run(
     """
     vid_frame_count = 0
 
-    # Check source path
+
     if not Path(source).exists():
         raise FileNotFoundError(f"Source path '{source}' does not exist.")
 
-    # Setup Model
+
     model = YOLO(f"{weights}")
     model.to("cuda") if device == "0" else model.to("cpu")
 
-    # Extract classes names
+
     names = model.names
 
-    # Video setup
+
     videocapture = cv2.VideoCapture(source)
     frame_width = int(videocapture.get(3))
     frame_height = int(videocapture.get(4))
     fps = int(videocapture.get(5))
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
 
-    # Output setup
+
     save_dir = increment_path(Path("ultralytics_rc_output") / "exp", exist_ok)
     save_dir.mkdir(parents=True, exist_ok=True)
     video_writer = cv2.VideoWriter(str(save_dir / f"{Path(source).stem}.avi"), fourcc, fps, (frame_width, frame_height))
 
-    # Iterate over video frames
+
     while videocapture.isOpened():
         success, frame = videocapture.read()
         if not success:
             break
         vid_frame_count += 1
 
-        # Extract the results
+
         results = model.track(frame, persist=True, classes=classes)
 
         if results[0].boxes.is_track:
@@ -165,21 +165,21 @@ def run(
 
             for box, track_id, cls in zip(boxes, track_ids, clss):
                 annotator.box_label(box, str(names[cls]), color=colors(cls, True))
-                bbox_center = (box[0] + box[2]) / 2, (box[1] + box[3]) / 2  # Bbox center
+                bbox_center = (box[0] + box[2]) / 2, (box[1] + box[3]) / 2
 
-                track = track_history[track_id]  # Tracking Lines plot
+                track = track_history[track_id]
                 track.append((float(bbox_center[0]), float(bbox_center[1])))
                 if len(track) > 30:
                     track.pop(0)
                 points = np.hstack(track).astype(np.int32).reshape((-1, 1, 2))
                 cv2.polylines(frame, [points], isClosed=False, color=colors(cls, True), thickness=track_thickness)
 
-                # Check if detection inside region
+
                 for region in counting_regions:
                     if region["polygon"].contains(Point((bbox_center[0], bbox_center[1]))):
                         region["counts"] += 1
 
-        # Draw regions (Polygons/Rectangles)
+
         for region in counting_regions:
             region_label = str(region["counts"])
             region_color = region["region_color"]
@@ -214,7 +214,7 @@ def run(
         if save_img:
             video_writer.write(frame)
 
-        for region in counting_regions:  # Reinitialize count for each region
+        for region in counting_regions:
             region["counts"] = 0
 
         if cv2.waitKey(1) & 0xFF == ord("q"):

@@ -28,7 +28,7 @@ class DotProductScoring(torch.nn.Module):
         super().__init__()
         self.d_proj = d_proj
         assert isinstance(prompt_mlp, torch.nn.Module) or prompt_mlp is None
-        self.prompt_mlp = prompt_mlp  # an optional MLP projection for prompt
+        self.prompt_mlp = prompt_mlp
         self.prompt_proj = torch.nn.Linear(d_model, d_proj)
         self.hs_proj = torch.nn.Linear(d_model, d_proj)
         self.scale = float(1.0 / np.sqrt(d_proj))
@@ -39,37 +39,37 @@ class DotProductScoring(torch.nn.Module):
     @staticmethod
     def mean_pool_text(prompt, prompt_mask):
         """Mean-pool the prompt embeddings over the valid tokens only."""
-        # is_valid has shape (seq, bs, 1), where 1 is valid and 0 is padding
+
         is_valid = (~prompt_mask).to(prompt.dtype).permute(1, 0)[..., None]
-        # num_valid has shape (bs, 1)
+
         num_valid = torch.clamp(torch.sum(is_valid, dim=0), min=1.0)
-        # mean pool over all the valid tokens -- pooled_prompt has shape (bs, proj_dim)
+
         pooled_prompt = (prompt * is_valid).sum(dim=0) / num_valid
         return pooled_prompt
 
     def forward(self, hs, prompt, prompt_mask):
         """Compute dot-product scores between hs and prompt."""
-        # hs has shape (num_layer, bs, num_query, d_model)
-        # prompt has shape (seq, bs, d_model)
-        # prompt_mask has shape (bs, seq), where 1 is valid and 0 is padding
+
+
+
         assert hs.dim() == 4 and prompt.dim() == 3 and prompt_mask.dim() == 2
 
-        # apply MLP on prompt if specified
+
         if self.prompt_mlp is not None:
             prompt = self.prompt_mlp(prompt.to(hs.dtype))
 
-        # first, get the mean-pooled version of the prompt
+
         pooled_prompt = self.mean_pool_text(prompt, prompt_mask)
 
-        # then, project pooled_prompt and hs to d_proj dimensions
-        proj_pooled_prompt = self.prompt_proj(pooled_prompt)  # (bs, d_proj)
-        proj_hs = self.hs_proj(hs)  # (num_layer, bs, num_query, d_proj)
 
-        # finally, get dot-product scores of shape (num_layer, bs, num_query, 1)
+        proj_pooled_prompt = self.prompt_proj(pooled_prompt)
+        proj_hs = self.hs_proj(hs)
+
+
         scores = torch.matmul(proj_hs, proj_pooled_prompt.unsqueeze(-1))
         scores *= self.scale
 
-        # clamp scores to a max value to avoid numerical issues in loss or matcher
+
         if self.clamp_logits:
             scores.clamp_(min=-self.clamp_max_val, max=self.clamp_max_val)
 
@@ -103,7 +103,7 @@ class TransformerWrapper(nn.Module):
         encoder,
         decoder,
         d_model: int,
-        two_stage_type="none",  # ["none"] only for now
+        two_stage_type="none",
         pos_enc_at_input_dec=True,
     ):
         """Initialize the TransformerWrapper."""
@@ -113,7 +113,7 @@ class TransformerWrapper(nn.Module):
         self.num_queries = decoder.num_queries if decoder is not None else None
         self.pos_enc_at_input_dec = pos_enc_at_input_dec
 
-        # for two stage
+
         assert two_stage_type in ["none"], f"unknown param {two_stage_type} of two_stage_type"
         self.two_stage_type = two_stage_type
 
@@ -171,8 +171,8 @@ def gen_sineembed_for_position(pos_tensor: torch.Tensor, num_feats: int = 256):
     """
     assert num_feats % 2 == 0
     num_feats = num_feats // 2
-    # n_query, bs, _ = pos_tensor.size()
-    # sineembed_tensor = torch.zeros(n_query, bs, 256)
+
+
     scale = 2 * math.pi
     dim_t = torch.arange(num_feats, dtype=pos_tensor.dtype, device=pos_tensor.device)
     dim_t = 10000 ** (2 * (torch.div(dim_t, 2, rounding_mode="floor")) / num_feats)

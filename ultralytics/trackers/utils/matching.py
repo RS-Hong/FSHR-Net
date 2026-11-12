@@ -7,13 +7,13 @@ from scipy.spatial.distance import cdist
 from ultralytics.utils.metrics import batch_probiou, bbox_ioa
 
 try:
-    import lap  # for linear_assignment
+    import lap
 
-    assert lap.__version__  # verify package is not directory
+    assert lap.__version__
 except (ImportError, AssertionError, AttributeError):
     from ultralytics.utils.checks import check_requirements
 
-    check_requirements("lap>=0.5.12")  # https://github.com/gatagat/lap
+    check_requirements("lap>=0.5.12")
     import lap
 
 
@@ -40,16 +40,16 @@ def linear_assignment(cost_matrix: np.ndarray, thresh: float, use_lap: bool = Tr
         return np.empty((0, 2), dtype=int), tuple(range(cost_matrix.shape[0])), tuple(range(cost_matrix.shape[1]))
 
     if use_lap:
-        # Use lap.lapjv
-        # https://github.com/gatagat/lap
+
+
         _, x, y = lap.lapjv(cost_matrix, extend_cost=True, cost_limit=thresh)
         matches = [[ix, mx] for ix, mx in enumerate(x) if mx >= 0]
         unmatched_a = np.where(x < 0)[0]
         unmatched_b = np.where(y < 0)[0]
     else:
-        # Use scipy.optimize.linear_sum_assignment
-        # https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.linear_sum_assignment.html
-        x, y = scipy.optimize.linear_sum_assignment(cost_matrix)  # row x, col y
+
+
+        x, y = scipy.optimize.linear_sum_assignment(cost_matrix)
         matches = np.asarray([[x[i], y[i]] for i in range(len(x)) if cost_matrix[x[i], y[i]] <= thresh])
         if len(matches) == 0:
             unmatched_a = list(np.arange(cost_matrix.shape[0]))
@@ -97,7 +97,7 @@ def iou_distance(atracks: list, btracks: list) -> np.ndarray:
                 np.ascontiguousarray(btlbrs, dtype=np.float32),
                 iou=True,
             )
-    return 1 - ious  # cost matrix
+    return 1 - ious
 
 
 def embedding_distance(tracks: list, detections: list, metric: str = "cosine") -> np.ndarray:
@@ -122,10 +122,10 @@ def embedding_distance(tracks: list, detections: list, metric: str = "cosine") -
     if cost_matrix.size == 0:
         return cost_matrix
     det_features = np.asarray([track.curr_feat for track in detections], dtype=np.float32)
-    # for i, track in enumerate(tracks):
-    # cost_matrix[i, :] = np.maximum(0.0, cdist(track.smooth_feat.reshape(1,-1), det_features, metric))
+
+
     track_features = np.asarray([track.smooth_feat for track in tracks], dtype=np.float32)
-    cost_matrix = np.maximum(0.0, cdist(track_features, det_features, metric))  # Normalized features
+    cost_matrix = np.maximum(0.0, cdist(track_features, det_features, metric))
     return cost_matrix
 
 
@@ -151,4 +151,4 @@ def fuse_score(cost_matrix: np.ndarray, detections: list) -> np.ndarray:
     det_scores = np.array([det.score for det in detections])
     det_scores = det_scores[None].repeat(cost_matrix.shape[0], axis=0)
     fuse_sim = iou_sim * det_scores
-    return 1 - fuse_sim  # fuse_cost
+    return 1 - fuse_sim

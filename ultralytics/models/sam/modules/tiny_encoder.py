@@ -171,8 +171,8 @@ class MBConv(nn.Module):
         self.conv3 = Conv2d_BN(self.hidden_chans, out_chans, ks=1, bn_weight_init=0.0)
         self.act3 = activation()
 
-        # NOTE: `DropPath` is needed only for training.
-        # self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
+
+
         self.drop_path = nn.Identity()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -238,7 +238,7 @@ class PatchMerging(nn.Module):
         if x.ndim == 3:
             H, W = self.input_resolution
             B = len(x)
-            # (B, C, H, W)
+
             x = x.view(B, H, W, -1).permute(0, 3, 1, 2)
 
         x = self.conv1(x)
@@ -306,7 +306,7 @@ class ConvLayer(nn.Module):
         self.depth = depth
         self.use_checkpoint = use_checkpoint
 
-        # Build blocks
+
         self.blocks = nn.ModuleList(
             [
                 MBConv(
@@ -320,7 +320,7 @@ class ConvLayer(nn.Module):
             ]
         )
 
-        # Patch merging layer
+
         self.downsample = (
             None
             if downsample is None
@@ -330,7 +330,7 @@ class ConvLayer(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Process input through convolutional layers, applying MBConv blocks and optional downsampling."""
         for blk in self.blocks:
-            x = torch.utils.checkpoint(blk, x) if self.use_checkpoint else blk(x)  # warn: checkpoint is slow import
+            x = torch.utils.checkpoint(blk, x) if self.use_checkpoint else blk(x)
         return x if self.downsample is None else self.downsample(x)
 
 
@@ -484,15 +484,15 @@ class Attention(torch.nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Apply multi-head attention with spatial awareness and trainable attention biases."""
-        B, N, _ = x.shape  # B, N, C
+        B, N, _ = x.shape
 
-        # Normalization
+
         x = self.norm(x)
 
         qkv = self.qkv(x)
-        # (B, N, num_heads, d)
+
         q, k, v = qkv.view(B, N, self.num_heads, -1).split([self.key_dim, self.key_dim, self.d], dim=3)
-        # (B, num_heads, N, d)
+
         q = q.permute(0, 2, 1, 3)
         k = k.permute(0, 2, 1, 3)
         v = v.permute(0, 2, 1, 3)
@@ -568,8 +568,8 @@ class TinyViTBlock(nn.Module):
         self.window_size = window_size
         self.mlp_ratio = mlp_ratio
 
-        # NOTE: `DropPath` is needed only for training.
-        # self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
+
+
         self.drop_path = nn.Identity()
 
         assert dim % num_heads == 0, "dim must be divisible by num_heads"
@@ -588,7 +588,7 @@ class TinyViTBlock(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Apply self-attention, local convolution, and MLP operations to the input tensor."""
         h, w = self.input_resolution
-        b, hw, c = x.shape  # batch, height*width, channels
+        b, hw, c = x.shape
         assert hw == h * w, "input feature has wrong size"
         res_x = x
         if h == self.window_size and w == self.window_size:
@@ -605,7 +605,7 @@ class TinyViTBlock(nn.Module):
             nH = pH // self.window_size
             nW = pW // self.window_size
 
-            # Window partition
+
             x = (
                 x.view(b, nH, self.window_size, nW, self.window_size, c)
                 .transpose(2, 3)
@@ -613,7 +613,7 @@ class TinyViTBlock(nn.Module):
             )
             x = self.attn(x)
 
-            # Window reverse
+
             x = x.view(b, nH, nW, self.window_size, self.window_size, c).transpose(2, 3).reshape(b, pH, pW, c)
             if padding:
                 x = x[:, :h, :w].contiguous()
@@ -714,7 +714,7 @@ class BasicLayer(nn.Module):
         self.depth = depth
         self.use_checkpoint = use_checkpoint
 
-        # Build blocks
+
         self.blocks = nn.ModuleList(
             [
                 TinyViTBlock(
@@ -732,7 +732,7 @@ class BasicLayer(nn.Module):
             ]
         )
 
-        # Patch merging layer
+
         self.downsample = (
             None
             if downsample is None
@@ -742,7 +742,7 @@ class BasicLayer(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Process input through TinyViT blocks and optional downsampling."""
         for blk in self.blocks:
-            x = torch.utils.checkpoint(blk, x) if self.use_checkpoint else blk(x)  # warn: checkpoint is slow import
+            x = torch.utils.checkpoint(blk, x) if self.use_checkpoint else blk(x)
         return x if self.downsample is None else self.downsample(x)
 
     def extra_repr(self) -> str:
@@ -832,10 +832,10 @@ class TinyViT(nn.Module):
         patches_resolution = self.patch_embed.patches_resolution
         self.patches_resolution = patches_resolution
 
-        # Stochastic depth
-        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))]  # stochastic depth decay rule
 
-        # Build layers
+        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))]
+
+
         self.layers = nn.ModuleList()
         for i_layer in range(self.num_layers):
             kwargs = dict(
@@ -844,8 +844,8 @@ class TinyViT(nn.Module):
                     patches_resolution[0] // (2 ** (i_layer - 1 if i_layer == 3 else i_layer)),
                     patches_resolution[1] // (2 ** (i_layer - 1 if i_layer == 3 else i_layer)),
                 ),
-                #   input_resolution=(patches_resolution[0] // (2 ** i_layer),
-                #                     patches_resolution[1] // (2 ** i_layer)),
+
+
                 depth=depths[i_layer],
                 drop_path=dpr[sum(depths[:i_layer]) : sum(depths[: i_layer + 1])],
                 downsample=PatchMerging if (i_layer < self.num_layers - 1) else None,
@@ -866,11 +866,11 @@ class TinyViT(nn.Module):
                 )
             self.layers.append(layer)
 
-        # Classifier head
+
         self.norm_head = nn.LayerNorm(embed_dims[-1])
         self.head = nn.Linear(embed_dims[-1], num_classes) if num_classes > 0 else torch.nn.Identity()
 
-        # Init weights
+
         self.apply(self._init_weights)
         self.set_layer_lr_decay(layer_lr_decay)
         self.neck = nn.Sequential(
@@ -895,7 +895,7 @@ class TinyViT(nn.Module):
         """Set layer-wise learning rate decay for the TinyViT model based on depth."""
         decay_rate = layer_lr_decay
 
-        # Layers -> blocks (depth)
+
         depth = sum(self.depths)
         lr_scales = [decay_rate ** (depth - i - 1) for i in range(depth)]
 
@@ -930,8 +930,8 @@ class TinyViT(nn.Module):
     def _init_weights(m):
         """Initialize weights for linear and normalization layers in the TinyViT model."""
         if isinstance(m, nn.Linear):
-            # NOTE: This initialization is needed only for training.
-            # trunc_normal_(m.weight, std=.02)
+
+
             if m.bias is not None:
                 nn.init.constant_(m.bias, 0)
         elif isinstance(m, nn.LayerNorm):
@@ -945,7 +945,7 @@ class TinyViT(nn.Module):
 
     def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         """Process input through feature extraction layers, returning spatial features."""
-        x = self.patch_embed(x)  # x input is (N, C, H, W)
+        x = self.patch_embed(x)
 
         x = self.layers[0](x)
         start_i = 1

@@ -63,10 +63,10 @@ class InstanceSegmentation(BaseSolution):
             >>> summary = segmenter.process(frame)
             >>> print(summary)
         """
-        self.extract_tracks(im0)  # Extract tracks (bounding boxes, classes, and masks)
+        self.extract_tracks(im0)
         self.masks = getattr(self.tracks, "masks", None)
 
-        # Iterate over detected classes, track IDs, and segmentation masks
+
         if self.masks is None:
             self.LOGGER.warning("No masks detected! Ensure you're using a supported Ultralytics segmentation model.")
             plot_im = im0
@@ -80,7 +80,7 @@ class InstanceSegmentation(BaseSolution):
                 color_mode="instance",
             )
 
-        self.display_output(plot_im)  # Display the annotated output using the base class function
+        self.display_output(plot_im)
 
-        # Return SolutionResults
+
         return SolutionResults(plot_im=plot_im, total_tracks=len(self.track_ids))

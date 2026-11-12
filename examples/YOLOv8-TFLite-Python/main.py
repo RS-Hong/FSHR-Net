@@ -70,21 +70,21 @@ class YOLOv8TFLite:
         else:
             with open(metadata) as f:
                 self.classes = yaml.safe_load(f)["names"]
-        np.random.seed(42)  # Set seed for reproducible colors
+        np.random.seed(42)
         self.color_palette = np.random.uniform(128, 255, size=(len(self.classes), 3))
 
-        # Initialize the TFLite interpreter
+
         self.model = Interpreter(model_path=model)
         self.model.allocate_tensors()
 
-        # Get input details
+
         input_details = self.model.get_input_details()[0]
         self.in_width, self.in_height = input_details["shape"][1:3]
         self.in_index = input_details["index"]
         self.in_scale, self.in_zero_point = input_details["quantization"]
         self.int8 = input_details["dtype"] == np.int8
 
-        # Get output details
+
         output_details = self.model.get_output_details()[0]
         self.out_index = output_details["index"]
         self.out_scale, self.out_zero_point = output_details["quantization"]
@@ -102,16 +102,16 @@ class YOLOv8TFLite:
             (np.ndarray): Resized and padded image.
             (tuple[float, float]): Padding ratios (top/height, left/width) for coordinate adjustment.
         """
-        shape = img.shape[:2]  # Current shape [height, width]
+        shape = img.shape[:2]
 
-        # Scale ratio (new / old)
+
         r = min(new_shape[0] / shape[0], new_shape[1] / shape[1])
 
-        # Compute padding
-        new_unpad = round(shape[1] * r), round(shape[0] * r)
-        dw, dh = (new_shape[1] - new_unpad[0]) / 2, (new_shape[0] - new_unpad[1]) / 2  # wh padding
 
-        if shape[::-1] != new_unpad:  # Resize if needed
+        new_unpad = round(shape[1] * r), round(shape[0] * r)
+        dw, dh = (new_shape[1] - new_unpad[0]) / 2, (new_shape[0] - new_unpad[1]) / 2
+
+        if shape[::-1] != new_unpad:
             img = cv2.resize(img, new_unpad, interpolation=cv2.INTER_LINEAR)
         top, bottom = round(dh - 0.1), round(dh + 0.1)
         left, right = round(dw - 0.1), round(dw + 0.1)
@@ -131,20 +131,20 @@ class YOLOv8TFLite:
         x1, y1, w, h = box
         color = self.color_palette[class_id]
 
-        # Draw bounding box
+
         cv2.rectangle(img, (int(x1), int(y1)), (int(x1 + w), int(y1 + h)), color, 2)
 
-        # Create label with class name and score
+
         label = f"{self.classes[class_id]}: {score:.2f}"
 
-        # Get text size for background rectangle
+
         (label_width, label_height), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
 
-        # Position label above or below box depending on space
+
         label_x = x1
         label_y = y1 - 10 if y1 - 10 > label_height else y1 + 10
 
-        # Draw label background
+
         cv2.rectangle(
             img,
             (int(label_x), int(label_y - label_height)),
@@ -153,7 +153,7 @@ class YOLOv8TFLite:
             cv2.FILLED,
         )
 
-        # Draw text
+
         cv2.putText(img, label, (int(label_x), int(label_y)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1, cv2.LINE_AA)
 
     def preprocess(self, img: np.ndarray) -> tuple[np.ndarray, tuple[float, float]]:
@@ -167,10 +167,10 @@ class YOLOv8TFLite:
             (tuple[float, float]): Padding ratios for coordinate adjustment.
         """
         img, pad = self.letterbox(img, (self.in_width, self.in_height))
-        img = img[..., ::-1][None]  # BGR to RGB and add batch dimension (N, H, W, C) for TFLite
+        img = img[..., ::-1][None]
         img = np.ascontiguousarray(img)
         img = img.astype(np.float32)
-        return img / 255, pad  # Normalize to [0, 1]
+        return img / 255, pad
 
     def postprocess(self, img: np.ndarray, outputs: np.ndarray, pad: tuple[float, float]) -> np.ndarray:
         """Process model outputs to extract and visualize detections.
@@ -183,28 +183,28 @@ class YOLOv8TFLite:
         Returns:
             (np.ndarray): The input image with detections drawn on it.
         """
-        # Adjust coordinates based on padding and scale to original image size
+
         outputs[:, 0] -= pad[1]
         outputs[:, 1] -= pad[0]
         outputs[:, :4] *= max(img.shape)
 
-        # Transform outputs to [x, y, w, h] format
+
         outputs = outputs.transpose(0, 2, 1)
-        outputs[..., 0] -= outputs[..., 2] / 2  # x center to top-left x
-        outputs[..., 1] -= outputs[..., 3] / 2  # y center to top-left y
+        outputs[..., 0] -= outputs[..., 2] / 2
+        outputs[..., 1] -= outputs[..., 3] / 2
 
         for out in outputs:
-            # Get scores and apply confidence threshold
+
             scores = out[:, 4:].max(-1)
             keep = scores > self.conf
             boxes = out[keep, :4]
             scores = scores[keep]
             class_ids = out[keep, 4:].argmax(-1)
 
-            # Apply non-maximum suppression
+
             indices = cv2.dnn.NMSBoxes(boxes, scores, self.conf, self.iou).flatten()
 
-            # Draw detections that survived NMS
+
             [self.draw_detections(img, boxes[i], scores[i], class_ids[i]) for i in indices]
 
         return img
@@ -218,24 +218,24 @@ class YOLOv8TFLite:
         Returns:
             (np.ndarray): The output image with drawn detections.
         """
-        # Load and preprocess image
+
         img = cv2.imread(img_path)
         x, pad = self.preprocess(img)
 
-        # Apply quantization if model is int8
+
         if self.int8:
             x = (x / self.in_scale + self.in_zero_point).astype(np.int8)
 
-        # Set input tensor and run inference
+
         self.model.set_tensor(self.in_index, x)
         self.model.invoke()
 
-        # Get output and dequantize if necessary
+
         y = self.model.get_tensor(self.out_index)
         if self.int8:
             y = (y.astype(np.float32) - self.out_zero_point) * self.out_scale
 
-        # Process detections and return result
+
         return self.postprocess(img, y, pad)
 
 

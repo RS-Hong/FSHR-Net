@@ -4,11 +4,11 @@ from ultralytics.utils import SETTINGS, TESTS_RUNNING
 from ultralytics.utils.torch_utils import model_info_for_loggers
 
 try:
-    assert not TESTS_RUNNING  # do not log pytest
-    assert SETTINGS["wandb"] is True  # verify integration is enabled
+    assert not TESTS_RUNNING
+    assert SETTINGS["wandb"] is True
     import wandb as wb
 
-    assert hasattr(wb, "__version__")  # verify package is not directory
+    assert hasattr(wb, "__version__")
     _processed_plots = {}
 
 except (ImportError, AssertionError):
@@ -33,7 +33,7 @@ def _custom_table(x, y, classes, title="Precision Recall Curve", x_title="Recall
     Returns:
         (wandb.Object): A wandb object suitable for logging, showcasing the crafted metric visualization.
     """
-    import polars as pl  # scope for faster 'import ultralytics'
+    import polars as pl
     import polars.selectors as cs
 
     df = pl.DataFrame({"class": classes, "y": y, "x": x}).with_columns(cs.numeric().round(3))
@@ -81,12 +81,12 @@ def _plot_curve(
     """
     import numpy as np
 
-    # Create new x
+
     if names is None:
         names = []
     x_new = np.linspace(x[0], x[-1], num_x).round(5)
 
-    # Create arrays for logging
+
     x_log = x_new.tolist()
     y_log = np.interp(x_new, x, np.mean(y, axis=0)).round(3).tolist()
 
@@ -96,9 +96,9 @@ def _plot_curve(
     else:
         classes = ["mean"] * len(x_log)
         for i, yi in enumerate(y):
-            x_log.extend(x_new)  # add new x
-            y_log.extend(np.interp(x_new, x, yi))  # interpolate y to new x
-            classes.extend([names[i]] * len(x_new))  # add class names
+            x_log.extend(x_new)
+            y_log.extend(np.interp(x_new, x, yi))
+            classes.extend([names[i]] * len(x_new))
         wb.log({id: _custom_table(x_log, y_log, classes, title, x_title, y_title)}, commit=False)
 
 
@@ -118,7 +118,7 @@ def _log_plots(plots, step):
         Plots are identified by their stem name (filename without extension).
         Each plot is logged as a WandB Image object.
     """
-    for name, params in plots.copy().items():  # shallow copy to prevent plots dict changing during iteration
+    for name, params in plots.copy().items():
         timestamp = params["timestamp"]
         if _processed_plots.get(name) != timestamp:
             wb.run.log({name.stem: wb.Image(str(name))}, step=step)
@@ -135,7 +135,7 @@ def on_pretrain_routine_start(trainer):
             project=str(trainer.args.project).replace("/", "-") if trainer.args.project else "Ultralytics",
             name=name,
             config=vars(trainer.args),
-            id=f"{name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}",  # add unique id
+            id=f"{name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
             dir=str(trainer.save_dir),
         )
 
@@ -146,7 +146,7 @@ def on_fit_epoch_end(trainer):
     _log_plots(trainer.validator.plots, step=trainer.epoch + 1)
     if trainer.epoch == 0:
         wb.run.log(model_info_for_loggers(trainer), step=trainer.epoch + 1)
-    wb.run.log(trainer.metrics, step=trainer.epoch + 1, commit=True)  # commit forces sync
+    wb.run.log(trainer.metrics, step=trainer.epoch + 1, commit=True)
 
 
 def on_train_epoch_end(trainer):
@@ -165,7 +165,7 @@ def on_train_end(trainer):
     if trainer.best.exists():
         art.add_file(trainer.best)
         wb.run.log_artifact(art, aliases=["best"])
-    # Check if we actually have plots to save
+
     if trainer.args.plots and hasattr(trainer.validator.metrics, "curves_results"):
         for curve_name, curve_values in zip(trainer.validator.metrics.curves, trainer.validator.metrics.curves_results):
             x, y, x_title, y_title = curve_values
@@ -178,7 +178,7 @@ def on_train_end(trainer):
                 x_title=x_title,
                 y_title=y_title,
             )
-    wb.run.finish()  # required or run continues on dashboard
+    wb.run.finish()
 
 
 callbacks = (

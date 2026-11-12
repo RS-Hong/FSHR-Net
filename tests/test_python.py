@@ -42,14 +42,14 @@ from ultralytics.utils.torch_utils import TORCH_1_11, TORCH_1_13
 def test_model_forward():
     """Test the forward pass of the YOLO model."""
     model = YOLO(CFG)
-    model(source=None, imgsz=32, augment=True)  # also test no source and augment
+    model(source=None, imgsz=32, augment=True)
 
 
 def test_model_methods():
     """Test various methods and properties of the YOLO model to ensure correct functionality."""
     model = YOLO(MODEL)
 
-    # Model methods
+
     model.info(verbose=True, detailed=True)
     model = model.reset_weights()
     model = model.load(MODEL)
@@ -58,7 +58,7 @@ def test_model_methods():
     model.clear_callback("on_train_start")
     model.reset_callbacks()
 
-    # Model properties
+
     _ = model.names
     _ = model.device
     _ = model.transforms
@@ -69,8 +69,8 @@ def test_model_profile():
     """Test profiling of the YOLO model with `profile=True` to assess performance and resource usage."""
     from ultralytics.nn.tasks import DetectionModel
 
-    model = DetectionModel()  # build model
-    im = torch.randn(1, 3, 64, 64)  # requires min imgsz=64
+    model = DetectionModel()
+    im = torch.randn(1, 3, 64, 64)
     _ = model.predict(im, profile=True)
 
 
@@ -81,7 +81,7 @@ def test_predict_txt(tmp_path):
         for src in SOURCES_LIST:
             f.write(f"{src}\n")
     results = YOLO(MODEL)(source=file, imgsz=32)
-    assert len(results) == 7  # 1 + 2 + 2 + 2 = 7 images
+    assert len(results) == 7
 
 
 @pytest.mark.skipif(True, reason="disabled for testing")
@@ -93,7 +93,7 @@ def test_predict_csv_multi_row(tmp_path):
         writer.writerow(["source"])
         writer.writerows([[src] for src in SOURCES_LIST])
     results = YOLO(MODEL)(source=file, imgsz=32)
-    assert len(results) == 7  # 1 + 2 + 2 + 2 = 7 images
+    assert len(results) == 7
 
 
 @pytest.mark.skipif(True, reason="disabled for testing")
@@ -104,7 +104,7 @@ def test_predict_csv_single_row(tmp_path):
         writer = csv.writer(f)
         writer.writerow(SOURCES_LIST)
     results = YOLO(MODEL)(source=file, imgsz=32)
-    assert len(results) == 7  # 1 + 2 + 2 + 2 = 7 images
+    assert len(results) == 7
 
 
 @pytest.mark.parametrize("model_name", MODELS)
@@ -112,22 +112,22 @@ def test_predict_img(model_name):
     """Test YOLO model predictions on various image input types and sources, including online images."""
     channels = 1 if model_name == "yolo11n-grayscale.pt" else 3
     model = YOLO(WEIGHTS_DIR / model_name)
-    im = cv2.imread(str(SOURCE), flags=cv2.IMREAD_GRAYSCALE if channels == 1 else cv2.IMREAD_COLOR)  # uint8 NumPy array
-    assert len(model(source=Image.open(SOURCE), save=True, verbose=True, imgsz=32)) == 1  # PIL
-    assert len(model(source=im, save=True, save_txt=True, imgsz=32)) == 1  # ndarray
-    assert len(model(torch.rand((2, channels, 32, 32)), imgsz=32)) == 2  # batch-size 2 Tensor, FP32 0.0-1.0 RGB order
-    assert len(model(source=[im, im], save=True, save_txt=True, imgsz=32)) == 2  # batch
-    assert len(list(model(source=[im, im], save=True, stream=True, imgsz=32))) == 2  # stream
-    assert len(model(torch.zeros(320, 640, channels).numpy().astype(np.uint8), imgsz=32)) == 1  # tensor to numpy
+    im = cv2.imread(str(SOURCE), flags=cv2.IMREAD_GRAYSCALE if channels == 1 else cv2.IMREAD_COLOR)
+    assert len(model(source=Image.open(SOURCE), save=True, verbose=True, imgsz=32)) == 1
+    assert len(model(source=im, save=True, save_txt=True, imgsz=32)) == 1
+    assert len(model(torch.rand((2, channels, 32, 32)), imgsz=32)) == 2
+    assert len(model(source=[im, im], save=True, save_txt=True, imgsz=32)) == 2
+    assert len(list(model(source=[im, im], save=True, stream=True, imgsz=32))) == 2
+    assert len(model(torch.zeros(320, 640, channels).numpy().astype(np.uint8), imgsz=32)) == 1
     batch = [
-        str(SOURCE),  # filename
-        Path(SOURCE),  # Path
-        f"{ASSETS_URL}/zidane.jpg?token=123" if ONLINE else SOURCE,  # URI
-        im,  # OpenCV
-        Image.open(SOURCE),  # PIL
-        np.zeros((320, 640, channels), dtype=np.uint8),  # numpy
+        str(SOURCE),
+        Path(SOURCE),
+        f"{ASSETS_URL}/zidane.jpg?token=123" if ONLINE else SOURCE,
+        im,
+        Image.open(SOURCE),
+        np.zeros((320, 640, channels), dtype=np.uint8),
     ]
-    assert len(model(batch, imgsz=32, classes=0)) == len(batch)  # multiple sources in a batch
+    assert len(model(batch, imgsz=32, classes=0)) == len(batch)
 
 
 @pytest.mark.parametrize("model", MODELS)
@@ -145,39 +145,39 @@ def test_predict_gray_and_4ch(tmp_path):
     source_non_utf = tmp_path / "non_UTF_测试文件_tést_image.jpg"
     source_spaces = tmp_path / "image with spaces.jpg"
 
-    im.convert("L").save(source_grayscale)  # grayscale
-    im.convert("RGBA").save(source_rgba)  # 4-ch PNG with alpha
-    im.save(source_non_utf)  # non-UTF characters in filename
-    im.save(source_spaces)  # spaces in filename
+    im.convert("L").save(source_grayscale)
+    im.convert("RGBA").save(source_rgba)
+    im.save(source_non_utf)
+    im.save(source_spaces)
 
-    # Inference
+
     model = YOLO(MODEL)
     for f in source_rgba, source_grayscale, source_non_utf, source_spaces:
         for source in Image.open(f), cv2.imread(str(f)), f:
             results = model(source, save=True, verbose=True, imgsz=32)
-            assert len(results) == 1  # verify that an image was run
-        f.unlink()  # cleanup
+            assert len(results) == 1
+        f.unlink()
 
 
 @pytest.mark.slow
 @pytest.mark.skipif(not ONLINE, reason="environment is offline")
 def test_predict_all_image_formats():
     """Test YOLO prediction all 12 image formats (AVIF, BMP, DNG, HEIC, JP2, JPEG, JPG, MPO, PNG, TIF, TIFF, WebP)."""
-    # Download dataset if needed
+
     data = check_det_dataset("coco12-formats.yaml")
     dataset_path = Path(data["path"])
 
-    # Collect all images from train and val
+
     expected = {"avif", "bmp", "dng", "heic", "jp2", "jpeg", "jpg", "mpo", "png", "tif", "tiff", "webp"}
     images = [im for im in (dataset_path / "images" / "train").glob("*.*") if im.suffix.lower().lstrip(".") in expected]
     images += [im for im in (dataset_path / "images" / "val").glob("*.*") if im.suffix.lower().lstrip(".") in expected]
     assert len(images) == 12, f"Expected 12 images, found {len(images)}"
 
-    # Verify all format extensions are represented
+
     extensions = {img.suffix.lower().lstrip(".") for img in images}
     assert extensions == expected, f"Missing formats: {expected - extensions}"
 
-    # Run inference on all images
+
     model = YOLO(MODEL)
     results = model(images, imgsz=32)
     assert len(results) == 12, f"Expected 12 results, got {len(results)}"
@@ -191,7 +191,7 @@ def test_youtube():
     model = YOLO(MODEL)
     try:
         model.predict("https://youtu.be/G17sBkb38XQ", imgsz=96, save=True)
-    # Handle internet connection errors and 'urllib.error.HTTPError: HTTP Error 429: Too Many Requests'
+
     except (urllib.error.HTTPError, ConnectionError) as e:
         LOGGER.error(f"YouTube Test Error: {e}")
 
@@ -203,14 +203,14 @@ def test_track_stream(model, tmp_path):
 
     Note imgsz=160 required for tracking for higher confidence and better matches.
     """
-    if model == "yolo26n-cls.pt":  # classification model not supported for tracking
+    if model == "yolo26n-cls.pt":
         return
     video_url = f"{ASSETS_URL}/decelera_portrait_min.mov"
     model = YOLO(model)
     model.track(video_url, imgsz=160, tracker="bytetrack.yaml")
-    model.track(video_url, imgsz=160, tracker="botsort.yaml", save_frames=True)  # test frame saving also
+    model.track(video_url, imgsz=160, tracker="botsort.yaml", save_frames=True)
 
-    # Test Global Motion Compensation (GMC) methods and ReID
+
     for gmc, reidm in zip(["orb", "sift", "ecc"], ["auto", "auto", "yolo26n-cls.pt"]):
         default_args = YAML.load(ROOT / "cfg/trackers/botsort.yaml")
         custom_yaml = tmp_path / f"botsort-{gmc}.yaml"
@@ -222,12 +222,12 @@ def test_track_stream(model, tmp_path):
 def test_val(task: str, weight: str, data: str) -> None:
     """Test the validation mode of the YOLO model."""
     model = YOLO(weight)
-    for plots in {True, False}:  # Test both cases i.e. plots=True and plots=False
+    for plots in {True, False}:
         metrics = model.val(data=data, imgsz=32, plots=plots)
         metrics.to_df()
         metrics.to_csv()
         metrics.to_json()
-        # Tests for confusion matrix export
+
         metrics.confusion_matrix.to_df()
         metrics.confusion_matrix.to_csv()
         metrics.confusion_matrix.to_json()
@@ -264,7 +264,7 @@ def test_all_model_yamls():
     for m in (ROOT / "cfg" / "models").rglob("*.yaml"):
         if "rtdetr" in m.name:
             if TORCH_1_11:
-                _ = RTDETR(m.name)(SOURCE, imgsz=640)  # must be 640
+                _ = RTDETR(m.name)(SOURCE, imgsz=640)
         else:
             YOLO(m.name)
 
@@ -276,7 +276,7 @@ def test_workflow():
     model.train(data="coco8.yaml", epochs=1, imgsz=32, optimizer="SGD")
     model.val(imgsz=32)
     model.predict(SOURCE, imgsz=32)
-    model.export(format="torchscript")  # WARNING: Windows slow CI export bug
+    model.export(format="torchscript")
 
 
 def test_predict_callback_and_setup():
@@ -287,18 +287,18 @@ def test_predict_callback_and_setup():
         path, im0s, _ = predictor.batch
         im0s = im0s if isinstance(im0s, list) else [im0s]
         bs = [predictor.dataset.bs for _ in range(len(path))]
-        predictor.results = zip(predictor.results, im0s, bs)  # results is list[batch_size]
+        predictor.results = zip(predictor.results, im0s, bs)
 
     model = YOLO(MODEL)
     model.add_callback("on_predict_batch_end", on_predict_batch_end)
 
     dataset = load_inference_source(source=SOURCE)
-    bs = dataset.bs  # access predictor properties
-    results = model.predict(dataset, stream=True, imgsz=160)  # source already setup
+    bs = dataset.bs
+    results = model.predict(dataset, stream=True, imgsz=160)
     for r, im0, bs in results:
         print("test_callback", im0.shape)
         print("test_callback", bs)
-        boxes = r.boxes  # Boxes object for bbox outputs
+        boxes = r.boxes
         print(boxes)
 
 
@@ -310,16 +310,16 @@ def test_results(model: str, tmp_path):
     for r in results:
         assert len(r), f"'{model}' results should not be empty!"
         r = r.cpu().numpy()
-        print(r, len(r), r.path)  # print numpy attributes
+        print(r, len(r), r.path)
         r = r.to(device="cpu", dtype=torch.float32)
         r.save_txt(txt_file=tmp_path / "runs/tests/label.txt", save_conf=True)
         r.save_crop(save_dir=tmp_path / "runs/tests/crops/")
-        r.to_df(decimals=3)  # Align to_ methods: https://docs.ultralytics.com/modes/predict/#working-with-results
+        r.to_df(decimals=3)
         r.to_csv()
         r.to_json(normalize=True)
         r.plot(pil=True, save=True, filename=tmp_path / "results_plot_save.jpg")
         r.plot(conf=True, boxes=True)
-        print(r, len(r), r.path)  # print after methods
+        print(r, len(r), r.path)
 
 
 def test_labels_and_crops():
@@ -330,19 +330,19 @@ def test_labels_and_crops():
     for r in results:
         im_name = Path(r.path).stem
         cls_idxs = r.boxes.cls.int().tolist()
-        # Check that detections are made (at least 2 detections per image expected)
+
         assert len(cls_idxs) >= 2, f"Expected at least 2 detections, got {len(cls_idxs)}"
-        # Check label path
+
         labels = save_path / f"labels/{im_name}.txt"
         assert labels.exists()
-        # Check detections match label count
+
         assert len(r.boxes.data) == len([line for line in labels.read_text().splitlines() if line])
-        # Check crops path and files
+
         crop_dirs = list((save_path / "crops").iterdir())
         crop_files = [f for p in crop_dirs for f in p.glob("*")]
-        # Crop directories match detections
+
         assert all(r.names.get(c) in {d.name for d in crop_dirs} for c in cls_idxs)
-        # Same number of crops as detections
+
         assert len([f for f in crop_files if im_name in f.name]) == len(r.boxes.data)
 
 
@@ -353,18 +353,18 @@ def test_data_utils(tmp_path):
     from ultralytics.data.utils import HUBDatasetStats
     from ultralytics.utils.downloads import zip_directory
 
-    # from ultralytics.utils.files import WorkingDirectory
-    # with WorkingDirectory(ROOT.parent / 'tests'):
+
+
 
     for task in TASKS:
-        file = Path(TASK2DATA[task]).with_suffix(".zip")  # i.e. coco8.zip
+        file = Path(TASK2DATA[task]).with_suffix(".zip")
         download(f"https://github.com/ultralytics/hub/raw/main/example_datasets/{file}", unzip=False, dir=tmp_path)
         stats = HUBDatasetStats(tmp_path / file, task=task)
         stats.get_json(save=True)
         stats.process_images()
 
     autosplit(tmp_path / "coco8")
-    zip_directory(tmp_path / "coco8/images/val")  # zip
+    zip_directory(tmp_path / "coco8/images/val")
 
 
 @pytest.mark.skipif(not ONLINE, reason="environment is offline")
@@ -397,7 +397,7 @@ def test_events():
 
     events = Events()
     events.enabled = True
-    cfg = copy(DEFAULT_CFG)  # does not require deepcopy
+    cfg = copy(DEFAULT_CFG)
     cfg.mode = "test"
     events(cfg)
 
@@ -411,13 +411,13 @@ def test_cfg_init():
     copy_default_cfg()
     (Path.cwd() / DEFAULT_CFG_PATH.name.replace(".yaml", "_copy.yaml")).unlink(missing_ok=False)
 
-    # Test smart_value() with comprehensive cases
-    # Test None conversion
+
+
     assert smart_value("none") is None
     assert smart_value("None") is None
     assert smart_value("NONE") is None
 
-    # Test boolean conversion
+
     assert smart_value("true") is True
     assert smart_value("True") is True
     assert smart_value("TRUE") is True
@@ -425,28 +425,28 @@ def test_cfg_init():
     assert smart_value("False") is False
     assert smart_value("FALSE") is False
 
-    # Test numeric conversion (ast.literal_eval)
+
     assert smart_value("42") == 42
     assert smart_value("-42") == -42
     assert smart_value("3.14") == 3.14
     assert smart_value("-3.14") == -3.14
     assert smart_value("1e-3") == 0.001
 
-    # Test list/tuple conversion (ast.literal_eval)
+
     assert smart_value("[1, 2, 3]") == [1, 2, 3]
     assert smart_value("(1, 2, 3)") == (1, 2, 3)
     assert smart_value("[640, 640]") == [640, 640]
 
-    # Test dict conversion (ast.literal_eval)
+
     assert smart_value("{'a': 1, 'b': 2}") == {"a": 1, "b": 2}
 
-    # Test string fallback (when ast.literal_eval fails)
+
     assert smart_value("some_string") == "some_string"
     assert smart_value("path/to/file") == "path/to/file"
     assert smart_value("hello world") == "hello world"
 
-    # Test that code injection is prevented (ast.literal_eval safety)
-    # These should return strings, not execute code
+
+
     assert smart_value("__import__('os').system('ls')") == "__import__('os').system('ls')"
     assert smart_value("eval('1+1')") == "eval('1+1')"
     assert smart_value("exec('x=1')") == "exec('x=1')"
@@ -463,7 +463,7 @@ def test_utils_init():
 def test_utils_checks():
     """Test various utility checks for filenames, git status, requirements, image sizes, and versions."""
     checks.check_yolov5u_filename("yolov5n.pt")
-    checks.check_requirements("numpy")  # check requirements.txt
+    checks.check_requirements("numpy")
     checks.check_imgsz([600, 600], max_dim=1)
     checks.check_imshow(warn=True)
     checks.check_version("ultralytics", "8.0.0")
@@ -509,13 +509,13 @@ def test_utils_ops():
 
     make_divisible(17, torch.tensor([8]))
 
-    boxes = torch.rand(10, 4)  # xywh
+    boxes = torch.rand(10, 4)
     torch.allclose(boxes, xyxy2xywh(xywh2xyxy(boxes)))
     torch.allclose(boxes, xyxy2xywhn(xywhn2xyxy(boxes)))
     torch.allclose(boxes, ltwh2xywh(xywh2ltwh(boxes)))
     torch.allclose(boxes, xyxy2ltwh(ltwh2xyxy(boxes)))
 
-    boxes = torch.rand(10, 5)  # xywhr for OBB
+    boxes = torch.rand(10, 5)
     boxes[:, 4] = torch.randn(10) * 30
     torch.allclose(boxes, xyxyxyxy2xywhr(xywhr2xyxyxyxy(boxes)), rtol=1e-3)
 
@@ -554,16 +554,16 @@ def test_nn_modules_conv():
     """Test Convolutional Neural Network modules including CBAM, Conv2, and ConvTranspose."""
     from ultralytics.nn.modules.conv import CBAM, Conv2, ConvTranspose, DWConvTranspose2d, Focus
 
-    c1, c2 = 8, 16  # input and output channels
-    x = torch.zeros(4, c1, 10, 10)  # BCHW
+    c1, c2 = 8, 16
+    x = torch.zeros(4, c1, 10, 10)
 
-    # Run all modules not otherwise covered in tests
+
     DWConvTranspose2d(c1, c2)(x)
     ConvTranspose(c1, c2)(x)
     Focus(c1, c2)(x)
     CBAM(c1)(x)
 
-    # Fuse ops
+
     m = Conv2(c1, c2)
     m.fuse_convs()
     m(x)
@@ -573,10 +573,10 @@ def test_nn_modules_block():
     """Test various neural network block modules."""
     from ultralytics.nn.modules.block import C1, C3TR, BottleneckCSP, C3Ghost, C3x
 
-    c1, c2 = 8, 16  # input and output channels
-    x = torch.zeros(4, c1, 10, 10)  # BCHW
+    c1, c2 = 8, 16
+    x = torch.zeros(4, c1, 10, 10)
 
-    # Run all modules not otherwise covered in tests
+
     C1(c1, c2)(x)
     C3x(c1, c2)(x)
     C3TR(c1, c2)(x)
@@ -650,7 +650,7 @@ def test_model_embeddings():
     model_detect = YOLO(MODEL)
     model_segment = YOLO(WEIGHTS_DIR / "yolo26n-seg.pt")
 
-    for batch in [SOURCE], [SOURCE, SOURCE]:  # test batch size 1 and 2
+    for batch in [SOURCE], [SOURCE, SOURCE]:
         assert len(model_detect.embed(source=batch, imgsz=32)) == len(batch)
         assert len(model_segment.embed(source=batch, imgsz=32)) == len(batch)
 
@@ -662,13 +662,13 @@ def test_model_embeddings():
 )
 def test_yolo_world():
     """Test YOLO world models with CLIP support."""
-    model = YOLO(WEIGHTS_DIR / "yolov8s-world.pt")  # no YOLO11n-world model yet
+    model = YOLO(WEIGHTS_DIR / "yolov8s-world.pt")
     model.set_classes(["tree", "window"])
     model(SOURCE, conf=0.01)
 
-    model = YOLO(WEIGHTS_DIR / "yolov8s-worldv2.pt")  # no YOLO11n-world model yet
-    # Training from a pretrained model. Eval is included at the final stage of training.
-    # Use dota8.yaml which has fewer categories to reduce the inference time of CLIP model
+    model = YOLO(WEIGHTS_DIR / "yolov8s-worldv2.pt")
+
+
     model.train(
         data="dota8.yaml",
         epochs=1,
@@ -677,10 +677,10 @@ def test_yolo_world():
         close_mosaic=1,
     )
 
-    # test WorWorldTrainerFromScratch
+
     from ultralytics.models.yolo.world.train_world import WorldTrainerFromScratch
 
-    model = YOLO("yolov8s-worldv2.yaml")  # no YOLO11n-world model yet
+    model = YOLO("yolov8s-worldv2.yaml")
     model.train(
         data={"train": {"yolo_data": ["dota8.yaml"]}, "val": {"yolo_data": ["dota8.yaml"]}},
         epochs=1,
@@ -699,8 +699,8 @@ def test_yolo_world():
 )
 def test_yoloe(tmp_path):
     """Test YOLOE models with MobileClip support."""
-    # Predict
-    # text-prompts
+
+
     model = YOLO(WEIGHTS_DIR / "yoloe-11s-seg.pt")
     names = ["person", "bus"]
     model.set_classes(names, model.get_text_pe(names))
@@ -709,7 +709,7 @@ def test_yoloe(tmp_path):
     from ultralytics import YOLOE
     from ultralytics.models.yolo.yoloe import YOLOEVPSegPredictor
 
-    # visual-prompts
+
     visuals = dict(
         bboxes=np.array([[221.52, 405.8, 344.98, 857.54], [120, 425, 160, 445]]),
         cls=np.array([0, 1]),
@@ -720,14 +720,14 @@ def test_yoloe(tmp_path):
         predictor=YOLOEVPSegPredictor,
     )
 
-    # Val
+
     model = YOLOE(WEIGHTS_DIR / "yoloe-11s-seg.pt")
-    # text prompts
+
     model.val(data="coco128-seg.yaml", imgsz=32)
-    # visual prompts
+
     model.val(data="coco128-seg.yaml", load_vp=True, imgsz=32)
 
-    # Train, fine-tune
+
     from ultralytics.models.yolo.yoloe import YOLOEPESegTrainer, YOLOESegTrainerFromScratch
 
     model = YOLOE("yoloe-11s-seg.pt")
@@ -738,7 +738,7 @@ def test_yoloe(tmp_path):
         trainer=YOLOEPESegTrainer,
         imgsz=32,
     )
-    # Train, from scratch
+
     data_dict = dict(train=dict(yolo_data=["coco128-seg.yaml"]), val=dict(yolo_data=["coco128-seg.yaml"]))
     data_yaml = tmp_path / "yoloe-data.yaml"
     YAML.save(data=data_dict, file=data_yaml)
@@ -752,19 +752,19 @@ def test_yoloe(tmp_path):
             imgsz=32,
         )
 
-    # prompt-free
-    # predict
+
+
     model = YOLOE(WEIGHTS_DIR / "yoloe-11s-seg-pf.pt")
     model.predict(SOURCE)
-    # val
-    model = YOLOE("yoloe-11s-seg.pt")  # or select yoloe-m/l-seg.pt for different sizes
+
+    model = YOLOE("yoloe-11s-seg.pt")
     model.val(data="coco128-seg.yaml", imgsz=32)
 
 
 def test_yolov10():
     """Test YOLOv10 model training, validation, and prediction functionality."""
     model = YOLO("yolov10n.yaml")
-    # train/val/predict
+
     model.train(data="coco8.yaml", epochs=1, imgsz=32, close_mosaic=1, cache="disk")
     model.val(data="coco8.yaml", imgsz=32)
     model.predict(imgsz=32, save_txt=True, save_crop=True, augment=True)
@@ -784,13 +784,13 @@ def test_multichannel():
 @pytest.mark.parametrize("task,model,data", TASK_MODEL_DATA)
 def test_grayscale(task: str, model: str, data: str, tmp_path) -> None:
     """Test YOLO model grayscale training, validation, and prediction functionality."""
-    if task == "classify":  # not support grayscale classification yet
+    if task == "classify":
         return
     grayscale_data = tmp_path / f"{Path(data).stem}-grayscale.yaml"
     data = check_det_dataset(data)
-    data["channels"] = 1  # add additional channels key for grayscale
+    data["channels"] = 1
     YAML.save(data=data, file=grayscale_data)
-    # remove npy files in train/val splits if exists, might be created by previous tests
+
     for split in {"train", "val"}:
         for npy_file in (Path(data["path"]) / data[split]).glob("*.npy"):
             npy_file.unlink()

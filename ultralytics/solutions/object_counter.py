@@ -41,15 +41,15 @@ class ObjectCounter(BaseSolution):
         """Initialize the ObjectCounter class for real-time object counting in video streams."""
         super().__init__(**kwargs)
 
-        self.in_count = 0  # Counter for objects moving inward
-        self.out_count = 0  # Counter for objects moving outward
-        self.counted_ids = []  # List of IDs of objects that have been counted
-        self.classwise_count = defaultdict(lambda: {"IN": 0, "OUT": 0})  # Dictionary for counts, categorized by class
-        self.region_initialized = False  # Flag indicating whether the region has been initialized
+        self.in_count = 0
+        self.out_count = 0
+        self.counted_ids = []
+        self.classwise_count = defaultdict(lambda: {"IN": 0, "OUT": 0})
+        self.region_initialized = False
 
         self.show_in = self.CFG["show_in"]
         self.show_out = self.CFG["show_out"]
-        self.margin = self.line_width * 2  # Scales the background rectangle size to display counts properly
+        self.margin = self.line_width * 2
 
     def count_objects(
         self,
@@ -78,38 +78,38 @@ class ObjectCounter(BaseSolution):
         if prev_position is None or track_id in self.counted_ids:
             return
 
-        if len(self.region) == 2:  # Linear region (defined as a line segment)
+        if len(self.region) == 2:
             if self.r_s.intersects(self.LineString([prev_position, current_centroid])):
-                # Determine orientation of the region (vertical or horizontal)
+
                 if abs(self.region[0][0] - self.region[1][0]) < abs(self.region[0][1] - self.region[1][1]):
-                    # Vertical region: Compare x-coordinates to determine direction
-                    if current_centroid[0] > prev_position[0]:  # Moving right
+
+                    if current_centroid[0] > prev_position[0]:
                         self.in_count += 1
                         self.classwise_count[self.names[cls]]["IN"] += 1
-                    else:  # Moving left
+                    else:
                         self.out_count += 1
                         self.classwise_count[self.names[cls]]["OUT"] += 1
-                # Horizontal region: Compare y-coordinates to determine direction
-                elif current_centroid[1] > prev_position[1]:  # Moving downward
+
+                elif current_centroid[1] > prev_position[1]:
                     self.in_count += 1
                     self.classwise_count[self.names[cls]]["IN"] += 1
-                else:  # Moving upward
+                else:
                     self.out_count += 1
                     self.classwise_count[self.names[cls]]["OUT"] += 1
                 self.counted_ids.append(track_id)
 
-        elif len(self.region) > 2:  # Polygonal region
+        elif len(self.region) > 2:
             if self.r_s.contains(self.Point(current_centroid)):
-                # Determine motion direction for vertical or horizontal polygons
+
                 region_width = max(p[0] for p in self.region) - min(p[0] for p in self.region)
                 region_height = max(p[1] for p in self.region) - min(p[1] for p in self.region)
 
                 if (region_width < region_height and current_centroid[0] > prev_position[0]) or (
                     region_width >= region_height and current_centroid[1] > prev_position[1]
-                ):  # Moving right or downward
+                ):
                     self.in_count += 1
                     self.classwise_count[self.names[cls]]["IN"] += 1
-                else:  # Moving left or upward
+                else:
                     self.out_count += 1
                     self.classwise_count[self.names[cls]]["OUT"] += 1
                 self.counted_ids.append(track_id)
@@ -157,30 +157,30 @@ class ObjectCounter(BaseSolution):
             self.initialize_region()
             self.region_initialized = True
 
-        self.extract_tracks(im0)  # Extract tracks
-        self.annotator = SolutionAnnotator(im0, line_width=self.line_width)  # Initialize annotator
+        self.extract_tracks(im0)
+        self.annotator = SolutionAnnotator(im0, line_width=self.line_width)
 
         self.annotator.draw_region(
             reg_pts=self.region, color=(104, 0, 123), thickness=self.line_width * 2
-        )  # Draw region
+        )
 
-        # Iterate over bounding boxes, track ids and classes index
+
         for box, track_id, cls, conf in zip(self.boxes, self.track_ids, self.clss, self.confs):
-            # Draw bounding box and counting region
-            self.annotator.box_label(box, label=self.adjust_box_label(cls, conf, track_id), color=colors(cls, True))
-            self.store_tracking_history(track_id, box)  # Store track history
 
-            # Store previous position of track for object counting
+            self.annotator.box_label(box, label=self.adjust_box_label(cls, conf, track_id), color=colors(cls, True))
+            self.store_tracking_history(track_id, box)
+
+
             prev_position = None
             if len(self.track_history[track_id]) > 1:
                 prev_position = self.track_history[track_id][-2]
-            self.count_objects(self.track_history[track_id][-1], track_id, prev_position, cls)  # object counting
+            self.count_objects(self.track_history[track_id][-1], track_id, prev_position, cls)
 
         plot_im = self.annotator.result()
-        self.display_counts(plot_im)  # Display the counts on the frame
-        self.display_output(plot_im)  # Display output with base class function
+        self.display_counts(plot_im)
+        self.display_output(plot_im)
 
-        # Return SolutionResults
+
         return SolutionResults(
             plot_im=plot_im,
             in_count=self.in_count,

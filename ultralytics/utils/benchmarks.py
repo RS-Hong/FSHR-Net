@@ -90,20 +90,20 @@ def benchmark(
     imgsz = check_imgsz(imgsz)
     assert imgsz[0] == imgsz[1] if isinstance(imgsz, list) else True, "benchmark() only supports square imgsz."
 
-    import polars as pl  # scope for faster 'import ultralytics'
+    import polars as pl
 
-    pl.Config.set_tbl_cols(-1)  # Show all columns
-    pl.Config.set_tbl_rows(-1)  # Show all rows
-    pl.Config.set_tbl_width_chars(-1)  # No width limit
-    pl.Config.set_tbl_hide_column_data_types(True)  # Hide data types
-    pl.Config.set_tbl_hide_dataframe_shape(True)  # Hide shape info
+    pl.Config.set_tbl_cols(-1)
+    pl.Config.set_tbl_rows(-1)
+    pl.Config.set_tbl_width_chars(-1)
+    pl.Config.set_tbl_hide_column_data_types(True)
+    pl.Config.set_tbl_hide_dataframe_shape(True)
     pl.Config.set_tbl_formatting("ASCII_BORDERS_ONLY_CONDENSED")
 
     device = select_device(device, verbose=False)
     if isinstance(model, (str, Path)):
         model = YOLO(model)
-    data = data or TASK2DATA[model.task]  # task to dataset, i.e. coco8.yaml for task=detect
-    key = TASK2METRIC[model.task]  # task to metric, i.e. metrics/mAP50-95(B) for task=detect
+    data = data or TASK2DATA[model.task]
+    key = TASK2METRIC[model.task]
 
     y = []
     t0 = time.time()
@@ -113,12 +113,12 @@ def benchmark(
         formats = frozenset(export_formats()["Argument"])
         assert format in formats, f"Expected format to be one of {formats}, but got '{format_arg}'."
     for name, format, suffix, cpu, gpu, _ in zip(*export_formats().values()):
-        emoji, filename = "❌", None  # export defaults
+        emoji, filename = "❌", None
         try:
             if format_arg and format_arg != format:
                 continue
 
-            # Checks
+
             if format == "pb":
                 assert model.task != "obb", "TensorFlow GraphDef not supported for OBB task"
             elif format == "edgetpu":
@@ -131,7 +131,7 @@ def benchmark(
                 assert not IS_PYTHON_3_13, "CoreML not supported on Python 3.13"
             if format in {"saved_model", "pb", "tflite", "edgetpu", "tfjs"}:
                 assert not isinstance(model, YOLOWorld), "YOLOWorldv2 TensorFlow exports not supported by onnx2tf yet"
-                # assert not IS_PYTHON_MINIMUM_3_12, "TFLite exports not supported on Python>=3.12 yet"
+
             if format == "paddle":
                 assert not isinstance(model, YOLOWorld), "YOLOWorldv2 Paddle exports not supported yet"
                 assert model.task != "obb", "Paddle OBB bug https://github.com/PaddlePaddle/Paddle/issues/72024"
@@ -157,26 +157,26 @@ def benchmark(
             if "cuda" in device.type:
                 assert gpu, "inference not supported on GPU"
 
-            # Export
+
             if format == "-":
                 filename = model.pt_path or model.ckpt_path or model.model_name
-                exported_model = deepcopy(model)  # PyTorch format
+                exported_model = deepcopy(model)
             else:
                 filename = deepcopy(model).export(
                     imgsz=imgsz, format=format, half=half, int8=int8, data=data, device=device, verbose=False, **kwargs
                 )
                 exported_model = YOLO(filename, task=model.task)
                 assert suffix in str(filename), "export failed"
-            emoji = "❎"  # indicates export succeeded
+            emoji = "❎"
 
-            # Predict
+
             assert model.task != "pose" or format != "pb", "GraphDef Pose inference is not supported"
             assert model.task != "pose" or format != "executorch", "ExecuTorch Pose inference is not supported"
             assert format not in {"edgetpu", "tfjs"}, "inference not supported"
             assert format != "coreml" or platform.system() == "Darwin", "inference only supported on macOS>=10.13"
             exported_model.predict(ASSETS / "bus.jpg", imgsz=imgsz, device=device, half=half, verbose=False)
 
-            # Validate
+
             results = exported_model.val(
                 data=data,
                 batch=1,
@@ -186,21 +186,21 @@ def benchmark(
                 half=half,
                 int8=int8,
                 verbose=False,
-                conf=0.001,  # all the pre-set benchmark mAP values are based on conf=0.001
+                conf=0.001,
             )
             metric, speed = results.results_dict[key], results.speed["inference"]
-            fps = round(1000 / (speed + eps), 2)  # frames per second
+            fps = round(1000 / (speed + eps), 2)
             y.append([name, "✅", round(file_size(filename), 1), round(metric, 4), round(speed, 2), fps])
         except Exception as e:
             if verbose:
                 assert type(e) is AssertionError, f"Benchmark failure for {name}: {e}"
             LOGGER.error(f"Benchmark failure for {name}: {e}")
-            y.append([name, emoji, round(file_size(filename), 1), None, None, None])  # mAP, t_inference
+            y.append([name, emoji, round(file_size(filename), 1), None, None, None])
 
-    # Print results
-    check_yolo(device=device)  # print system info
+
+    check_yolo(device=device)
     df = pl.DataFrame(y, schema=["Format", "Status❔", "Size (MB)", key, "Inference time (ms/im)", "FPS"], orient="row")
-    df = df.with_row_index(" ", offset=1)  # add index info
+    df = df.with_row_index(" ", offset=1)
     df_display = df.with_columns(pl.all().cast(pl.String).fill_null("-"))
 
     name = model.model_name
@@ -212,8 +212,8 @@ def benchmark(
         f.write(s)
 
     if verbose and isinstance(verbose, float):
-        metrics = df[key].to_numpy()  # values to compare to floor
-        floor = verbose  # minimum metric floor to pass, i.e. = 0.29 mAP for YOLOv5n
+        metrics = df[key].to_numpy()
+        floor = verbose
         assert all(x > floor for x in metrics if not np.isnan(x)), f"Benchmark failure: metric(s) < floor {floor}"
 
     return df_display
@@ -426,7 +426,7 @@ class ProfileModels:
         self.min_time = min_time
         self.imgsz = imgsz
         self.half = half
-        self.trt = trt  # run TensorRT profiling
+        self.trt = trt
         self.device = device if isinstance(device, torch.device) else select_device(device)
 
     def run(self):
@@ -453,7 +453,7 @@ class ProfileModels:
             engine_file = file.with_suffix(".engine")
             if file.suffix in {".pt", ".yaml", ".yml"}:
                 model = YOLO(str(file))
-                model.fuse()  # to report correct params and GFLOPs in model.info()
+                model.fuse()
                 model_info = model.info(imgsz=self.imgsz)
                 if self.trt and self.device.type != "cpu" and not engine_file.is_file():
                     engine_file = model.export(
@@ -495,7 +495,7 @@ class ProfileModels:
             if path.is_dir():
                 extensions = ["*.pt", "*.onnx", "*.yaml"]
                 files.extend([file for ext in extensions for file in glob.glob(str(path / ext))])
-            elif path.suffix in {".pt", ".yaml", ".yml"}:  # add non-existing
+            elif path.suffix in {".pt", ".yaml", ".yml"}:
                 files.append(str(path))
             else:
                 files.extend(glob.glob(str(path)))
@@ -506,7 +506,7 @@ class ProfileModels:
     @staticmethod
     def get_onnx_model_info(onnx_file: str):
         """Extract metadata from an ONNX model file including parameters, GFLOPs, and input shape."""
-        return 0.0, 0.0, 0.0, 0.0  # return (num_layers, num_params, num_gradients, num_flops)
+        return 0.0, 0.0, 0.0, 0.0
 
     @staticmethod
     def iterative_sigma_clipping(data: np.ndarray, sigma: float = 2, max_iters: int = 3):
@@ -543,11 +543,11 @@ class ProfileModels:
         if not self.trt or not Path(engine_file).is_file():
             return 0.0, 0.0
 
-        # Model and input
-        model = YOLO(engine_file)
-        input_data = np.zeros((self.imgsz, self.imgsz, 3), dtype=np.uint8)  # use uint8 for Classify
 
-        # Warmup runs
+        model = YOLO(engine_file)
+        input_data = np.zeros((self.imgsz, self.imgsz, 3), dtype=np.uint8)
+
+
         elapsed = 0.0
         for _ in range(3):
             start_time = time.time()
@@ -555,16 +555,16 @@ class ProfileModels:
                 model(input_data, imgsz=self.imgsz, verbose=False)
             elapsed = time.time() - start_time
 
-        # Compute number of runs as higher of min_time or num_timed_runs
+
         num_runs = max(round(self.min_time / (elapsed + eps) * self.num_warmup_runs), self.num_timed_runs * 50)
 
-        # Timed runs
+
         run_times = []
         for _ in TQDM(range(num_runs), desc=engine_file):
             results = model(input_data, imgsz=self.imgsz, verbose=False)
-            run_times.append(results[0].speed["inference"])  # Convert to milliseconds
+            run_times.append(results[0].speed["inference"])
 
-        run_times = self.iterative_sigma_clipping(np.array(run_times), sigma=2, max_iters=3)  # sigma clipping
+        run_times = self.iterative_sigma_clipping(np.array(run_times), sigma=2, max_iters=3)
         return np.mean(run_times), np.std(run_times)
 
     @staticmethod
@@ -583,13 +583,13 @@ class ProfileModels:
             mean_time (float): Mean inference time in milliseconds.
             std_time (float): Standard deviation of inference time in milliseconds.
         """
-        check_requirements([("onnxruntime", "onnxruntime-gpu")])  # either package meets requirements
+        check_requirements([("onnxruntime", "onnxruntime-gpu")])
         import onnxruntime as ort
 
-        # Session with either 'TensorrtExecutionProvider', 'CUDAExecutionProvider', 'CPUExecutionProvider'
+
         sess_options = ort.SessionOptions()
         sess_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
-        sess_options.intra_op_num_threads = 8  # Limit the number of threads
+        sess_options.intra_op_num_threads = 8
         sess = ort.InferenceSession(onnx_file, sess_options, providers=["CPUExecutionProvider"])
 
         input_data_dict = {}
@@ -604,7 +604,7 @@ class ProfileModels:
             else:
                 input_shape = input_tensor.shape
 
-            # Mapping ONNX datatype to numpy datatype
+
             if "float16" in input_type:
                 input_dtype = np.float16
             elif "float" in input_type:
@@ -624,7 +624,7 @@ class ProfileModels:
 
         output_name = sess.get_outputs()[0].name
 
-        # Warmup runs
+
         elapsed = 0.0
         for _ in range(3):
             start_time = time.time()
@@ -632,17 +632,17 @@ class ProfileModels:
                 sess.run([output_name], input_data_dict)
             elapsed = time.time() - start_time
 
-        # Compute number of runs as higher of min_time or num_timed_runs
+
         num_runs = max(round(self.min_time / (elapsed + eps) * self.num_warmup_runs), self.num_timed_runs)
 
-        # Timed runs
+
         run_times = []
         for _ in TQDM(range(num_runs), desc=onnx_file):
             start_time = time.time()
             sess.run([output_name], input_data_dict)
-            run_times.append((time.time() - start_time) * 1000)  # Convert to milliseconds
+            run_times.append((time.time() - start_time) * 1000)
 
-        run_times = self.iterative_sigma_clipping(np.array(run_times), sigma=2, max_iters=5)  # sigma clipping
+        run_times = self.iterative_sigma_clipping(np.array(run_times), sigma=2, max_iters=5)
         return np.mean(run_times), np.std(run_times)
 
     def generate_table_row(

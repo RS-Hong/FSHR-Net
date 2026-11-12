@@ -81,7 +81,7 @@ class Attention(nn.Module):
         self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
         self.proj = nn.Linear(dim, dim)
 
-        # rel_pos embeddings and rope
+
         self.use_rel_pos = use_rel_pos
         self.input_size = input_size
 
@@ -90,7 +90,7 @@ class Attention(nn.Module):
         self.rope_pt_size = rope_pt_size
         self.rope_interp = rope_interp
 
-        # init rel_pos embeddings and rope
+
         self._setup_rel_pos(rel_pos_zero_init, input_size)
         self._setup_rope_freqs(input_size)
 
@@ -103,7 +103,7 @@ class Attention(nn.Module):
 
         assert input_size is not None
         assert self.cls_token is False, "not supported"
-        # initialize relative positional embeddings
+
         self.rel_pos_h = nn.Parameter(torch.zeros(2 * input_size[0] - 1, self.head_dim))
         self.rel_pos_w = nn.Parameter(torch.zeros(2 * input_size[1] - 1, self.head_dim))
 
@@ -111,7 +111,7 @@ class Attention(nn.Module):
             nn.init.trunc_normal_(self.rel_pos_h, std=0.02)
             nn.init.trunc_normal_(self.rel_pos_w, std=0.02)
 
-        # Precompute the relative coords
+
         H, W = input_size
         q_coords = torch.arange(H)[:, None]
         k_coords = torch.arange(W)[None, :]
@@ -125,22 +125,22 @@ class Attention(nn.Module):
             return
 
         assert input_size is not None
-        # determine rope input size
+
         if self.rope_pt_size is None:
             self.rope_pt_size = input_size
 
-        # initialize 2d rope freqs
+
         self.compute_cis = partial(
             compute_axial_cis,
             dim=self.head_dim,
             theta=self.rope_theta,
         )
 
-        # interpolate rope
+
         scale_pos = 1.0
         if self.rope_interp:
             scale_pos = self.rope_pt_size[0] / input_size[0]
-        # get scaled freqs_cis
+
         freqs_cis = self.compute_cis(
             end_x=input_size[0],
             end_y=input_size[1],
@@ -167,10 +167,10 @@ class Attention(nn.Module):
 
     def forward(self, x: Tensor) -> Tensor:
         """Forward pass of attention block."""
-        s = 1 if self.cls_token else 0  # used to exclude cls_token
+        s = 1 if self.cls_token else 0
         if x.ndim == 4:
             B, H, W, _ = x.shape
-            assert s == 0  # no cls_token
+            assert s == 0
             L = H * W
             ndim = 4
         else:
@@ -179,12 +179,12 @@ class Attention(nn.Module):
             ndim = 3
             H = W = math.sqrt(L - s)
 
-        # qkv with shape (3, B, nHead, L, C)
+
         qkv = self.qkv(x).reshape(B, L, 3, self.num_heads, -1)
-        # q, k, v with shape (B, nHead, L, C)
+
         q, k, v = qkv.permute(2, 0, 3, 1, 4).unbind(0)
 
-        # handle rope and rel pos embeddings
+
         q, k = self._apply_rope(q, k)
         if self.use_rel_pos:
             q, k = concat_rel_pos(
@@ -198,7 +198,7 @@ class Attention(nn.Module):
                 relative_coords=self.relative_coords,
             )
 
-            # sdpa expects [B, nheads, H*W, C] so we transpose back
+
             q = q.reshape(B, self.num_heads, H * W, -1)
             k = k.reshape(B, self.num_heads, H * W, -1)
 
@@ -294,13 +294,13 @@ class Block(nn.Module):
         """Forward pass of the transformer block."""
         shortcut = x
         x = self.norm1(x)
-        # Window partition
+
         if self.window_size > 0:
             H, W = x.shape[1], x.shape[2]
             x, pad_hw = window_partition(x, self.window_size)
 
         x = self.ls1(self.attn(x))
-        # Reverse window partition
+
         if self.window_size > 0:
             x = window_unpartition(x, self.window_size, pad_hw, (H, W))
 
@@ -342,7 +342,7 @@ class ViT(nn.Module):
         retain_cls_token: bool = True,
         dropout: float = 0.0,
         return_interm_layers: bool = False,
-        init_values: float | None = None,  # for layerscale
+        init_values: float | None = None,
         ln_pre: bool = False,
         ln_post: bool = False,
         bias_patch_embed: bool = True,
@@ -417,21 +417,21 @@ class ViT(nn.Module):
             bias=bias_patch_embed,
         )
 
-        # Handle absolute positional embedding
+
         self.tile_abs_pos = tile_abs_pos
         self.use_abs_pos = use_abs_pos
         if self.tile_abs_pos:
             assert self.use_abs_pos
 
         if self.use_abs_pos:
-            # Initialize absolute positional embedding with pretrain image size.
+
             num_patches = (pretrain_img_size // patch_size) * (pretrain_img_size // patch_size)
             num_positions = (num_patches + 1) if pretrain_use_cls_token else num_patches
             self.pos_embed = nn.Parameter(torch.zeros(1, num_positions, embed_dim))
         else:
             self.pos_embed = None
 
-        # stochastic depth decay rule
+
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]
 
         self.patch_size = patch_size
@@ -500,8 +500,8 @@ class ViT(nn.Module):
 
         s = 0
         if self.retain_cls_token:
-            # If cls_token is retained, we don't
-            # maintain spatial shape
+
+
             x = torch.cat([self.class_embedding, x.flatten(1, 2)], dim=1)
             s = 1
 

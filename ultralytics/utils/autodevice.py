@@ -103,11 +103,11 @@ class GPUInfo:
             "index": index,
             "name": self.pynvml.nvmlDeviceGetName(handle),
             "utilization": util.gpu if util else -1,
-            "memory_used": memory.used >> 20 if memory else -1,  # Convert bytes to MiB
+            "memory_used": memory.used >> 20 if memory else -1,
             "memory_total": memory.total >> 20 if memory else -1,
             "memory_free": memory.free >> 20 if memory else -1,
             "temperature": safe_get(self.pynvml.nvmlDeviceGetTemperature, handle, temp_type),
-            "power_draw": safe_get(self.pynvml.nvmlDeviceGetPowerUsage, handle, divisor=1000),  # Convert mW to W
+            "power_draw": safe_get(self.pynvml.nvmlDeviceGetPowerUsage, handle, divisor=1000),
             "power_limit": safe_get(self.pynvml.nvmlDeviceGetEnforcedPowerLimit, handle, divisor=1000),
         }
 
@@ -165,7 +165,7 @@ class GPUInfo:
             LOGGER.warning("NVML stats unavailable.")
             return []
 
-        # Filter and sort eligible GPUs
+
         eligible_gpus = [
             gpu
             for gpu in self.gpu_stats
@@ -174,7 +174,7 @@ class GPUInfo:
         ]
         eligible_gpus.sort(key=lambda x: (x.get("utilization", 101), -x.get("memory_free", 0)))
 
-        # Select top 'count' indices
+
         selected = [gpu["index"] for gpu in eligible_gpus[:count]]
 
         if selected:
@@ -188,8 +188,8 @@ class GPUInfo:
 
 
 if __name__ == "__main__":
-    required_free_mem_fraction = 0.2  # Require 20% free VRAM
-    required_free_util_fraction = 0.2  # Require 20% free utilization
+    required_free_mem_fraction = 0.2
+    required_free_util_fraction = 0.2
     num_gpus_to_select = 1
 
     gpu_info = GPUInfo()

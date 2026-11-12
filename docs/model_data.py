@@ -10,7 +10,7 @@ Examples:
     >>> python model_metadata.py
 """
 
-# Dictionary containing metadata for various models
+
 data = {
     "YOLO26": {
         "author": "Glenn Jocher and Jing Qiu",
@@ -350,6 +350,6 @@ data = {
 if __name__ == "__main__":
     import json
 
-    # Save the YOLO model metadata to "model_data.json"
+
     with open("model_data.json", "w") as f:
         json.dump(data, f)

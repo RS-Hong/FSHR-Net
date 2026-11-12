@@ -121,7 +121,7 @@ class BaseValidator:
         self.save_dir = save_dir or get_save_dir(self.args)
         (self.save_dir / "labels" if self.args.save_txt else self.save_dir).mkdir(parents=True, exist_ok=True)
         if self.args.conf is None:
-            self.args.conf = 0.01 if self.args.task == "obb" else 0.001  # reduce OBB val memory usage
+            self.args.conf = 0.01 if self.args.task == "obb" else 0.001
         self.args.imgsz = check_imgsz(self.args.imgsz, max_dim=1)
 
         self.plots = {}
@@ -143,11 +143,11 @@ class BaseValidator:
         if self.training:
             self.device = trainer.device
             self.data = trainer.data
-            # Force FP16 val during training
+
             self.args.half = self.device.type != "cpu" and trainer.amp
             model = trainer.ema.ema or trainer.model
             if trainer.args.compile and hasattr(model, "_orig_mod"):
-                model = model._orig_mod  # validate non-compiled original model to avoid issues
+                model = model._orig_mod
             model = model.half() if self.args.half else model.float()
             self.loss = torch.zeros_like(trainer.loss_items, device=trainer.device)
             self.args.plots &= trainer.stopper.possible_stop or (trainer.epoch == trainer.epochs - 1)
@@ -168,12 +168,12 @@ class BaseValidator:
                 data=self.args.data,
                 fp16=self.args.half,
             )
-            self.device = model.device  # update device
-            self.args.half = model.fp16  # update half
+            self.device = model.device
+            self.args.half = model.fp16
             stride, pt, jit = model.stride, model.pt, model.jit
             imgsz = check_imgsz(self.args.imgsz, stride=stride)
             if not (pt or jit or getattr(model, "dynamic", False)):
-                self.args.batch = model.metadata.get("batch", 1)  # export.py models default to batch-size 1
+                self.args.batch = model.metadata.get("batch", 1)
                 LOGGER.info(f"Setting batch={self.args.batch} input of shape ({self.args.batch}, 3, {imgsz}, {imgsz})")
 
             if str(self.args.data).rsplit(".", 1)[-1] in {"yaml", "yml"}:
@@ -184,16 +184,16 @@ class BaseValidator:
                 raise FileNotFoundError(emojis(f"Dataset '{self.args.data}' for task={self.args.task} not found ❌"))
 
             if self.device.type in {"cpu", "mps"}:
-                self.args.workers = 0  # faster CPU val as time dominated by inference, not dataloading
+                self.args.workers = 0
             if not (pt or (getattr(model, "dynamic", False) and not model.imx)):
                 self.args.rect = False
-            self.stride = model.stride  # used in get_dataloader() for padding
+            self.stride = model.stride
             self.dataloader = self.dataloader or self.get_dataloader(self.data.get(self.args.split), self.args.batch)
 
             model.eval()
             if self.args.compile:
                 model = attempt_compile(model, device=self.device)
-            model.warmup(imgsz=(1 if pt else self.args.batch, self.data["channels"], imgsz, imgsz))  # warmup
+            model.warmup(imgsz=(1 if pt else self.args.batch, self.data["channels"], imgsz, imgsz))
 
         self.run_callbacks("on_val_start")
         dt = (
@@ -204,24 +204,24 @@ class BaseValidator:
         )
         bar = TQDM(self.dataloader, desc=self.get_desc(), total=len(self.dataloader))
         self.init_metrics(unwrap_model(model))
-        self.jdict = []  # empty before each val
+        self.jdict = []
         for batch_i, batch in enumerate(bar):
             self.run_callbacks("on_val_batch_start")
             self.batch_i = batch_i
-            # Preprocess
+
             with dt[0]:
                 batch = self.preprocess(batch)
 
-            # Inference
+
             with dt[1]:
                 preds = model(batch["img"], augment=augment)
 
-            # Loss
+
             with dt[2]:
                 if self.training:
                     self.loss += model.loss(batch, preds)[1]
 
-            # Postprocess
+
             with dt[3]:
                 preds = self.postprocess(preds)
 
@@ -243,14 +243,14 @@ class BaseValidator:
 
         if self.training:
             model.float()
-            # Reduce loss across all GPUs
+
             loss = self.loss.clone().detach()
             if trainer.world_size > 1:
                 dist.reduce(loss, dst=0, op=dist.ReduceOp.AVG)
             if RANK > 0:
                 return
             results = {**stats, **trainer.label_loss_items(loss.cpu() / len(self.dataloader), prefix="val")}
-            return {k: round(float(v), 5) for k, v in results.items()}  # return results as 5 decimal place floats
+            return {k: round(float(v), 5) for k, v in results.items()}
         else:
             if RANK > 0:
                 return stats
@@ -262,8 +262,8 @@ class BaseValidator:
             if self.args.save_json and self.jdict:
                 with open(str(self.save_dir / "predictions.json"), "w", encoding="utf-8") as f:
                     LOGGER.info(f"Saving {f.name}...")
-                    json.dump(self.jdict, f)  # flatten and save
-                stats = self.eval_json(stats)  # update stats
+                    json.dump(self.jdict, f)
+                stats = self.eval_json(stats)
             if self.args.plots or self.args.save_json:
                 LOGGER.info(f"Results saved to {colorstr('bold', self.save_dir)}")
             return stats
@@ -282,16 +282,16 @@ class BaseValidator:
         Returns:
             (torch.Tensor): Correct tensor of shape (N, 10) for 10 IoU thresholds.
         """
-        # Dx10 matrix, where D - detections, 10 - IoU thresholds
+
         correct = np.zeros((pred_classes.shape[0], self.iouv.shape[0])).astype(bool)
-        # LxD matrix where L - labels (rows), D - detections (columns)
+
         correct_class = true_classes[:, None] == pred_classes
-        iou = iou * correct_class  # zero out the wrong classes
+        iou = iou * correct_class
         iou = iou.cpu().numpy()
         for i, threshold in enumerate(self.iouv.cpu().tolist()):
             if use_scipy:
-                # WARNING: known issue that reduces mAP in https://github.com/ultralytics/ultralytics/pull/4708
-                import scipy  # scope import to avoid importing for all commands
+
+                import scipy
 
                 cost_matrix = iou * (iou >= threshold)
                 if cost_matrix.any():
@@ -300,7 +300,7 @@ class BaseValidator:
                     if valid.any():
                         correct[detections_idx[valid], i] = True
             else:
-                matches = np.nonzero(iou >= threshold)  # IoU > threshold and classes match
+                matches = np.nonzero(iou >= threshold)
                 matches = np.array(matches).T
                 if matches.shape[0]:
                     if matches.shape[0] > 1:
@@ -372,7 +372,7 @@ class BaseValidator:
         """Register plots for visualization, deduplicating by type."""
         plot_type = data.get("type") if data else None
         if plot_type and any((v.get("data") or {}).get("type") == plot_type for v in self.plots.values()):
-            return  # Skip duplicate plot types
+            return
         self.plots[Path(name)] = {"data": data, "timestamp": time.time()}
 
     def plot_val_samples(self, batch, ni):

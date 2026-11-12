@@ -22,4 +22,4 @@ __all__ = (
     "SAM3SemanticPredictor",
     "SAM3VideoPredictor",
     "SAM3VideoSemanticPredictor",
-)  # tuple or list of exportable items
+)

@@ -8,7 +8,7 @@ from typing import Any
 import cv2
 import numpy as np
 
-from ultralytics.solutions.solutions import BaseSolution, SolutionResults  # Import a parent class
+from ultralytics.solutions.solutions import BaseSolution, SolutionResults
 from ultralytics.utils import plt_settings
 
 
@@ -52,44 +52,44 @@ class Analytics(BaseSolution):
         """Initialize Analytics class with various chart types for visual data representation."""
         super().__init__(**kwargs)
 
-        import matplotlib.pyplot as plt  # scope for faster 'import ultralytics'
+        import matplotlib.pyplot as plt
         from matplotlib.backends.backend_agg import FigureCanvasAgg
         from matplotlib.figure import Figure
 
-        self.type = self.CFG["analytics_type"]  # Chart type: "line", "pie", "bar", or "area".
+        self.type = self.CFG["analytics_type"]
         self.x_label = "Classes" if self.type in {"bar", "pie"} else "Frame#"
         self.y_label = "Total Counts"
 
-        # Predefined data
-        self.bg_color = "#F3F3F3"  # background color of frame
-        self.fg_color = "#111E68"  # foreground color of frame
-        self.title = "Ultralytics Solutions"  # window name
-        self.max_points = 45  # maximum points to be drawn on window
-        self.fontsize = 25  # text font size for display
-        figsize = self.CFG["figsize"]  # Output size, e.g. (12.8, 7.2) -> 1280x720.
+
+        self.bg_color = "#F3F3F3"
+        self.fg_color = "#111E68"
+        self.title = "Ultralytics Solutions"
+        self.max_points = 45
+        self.fontsize = 25
+        figsize = self.CFG["figsize"]
         self.color_cycle = cycle(["#DD00BA", "#042AFF", "#FF4447", "#7D24FF", "#BD00FF"])
 
-        self.total_counts = 0  # Stores total counts for line charts.
-        self.clswise_count = {}  # dictionary for class-wise counts
-        self.update_every = kwargs.get("update_every", 30)  # Only update graph every 30 frames by default
-        self.last_plot_im = None  # Cache of the last rendered chart
+        self.total_counts = 0
+        self.clswise_count = {}
+        self.update_every = kwargs.get("update_every", 30)
+        self.last_plot_im = None
 
-        # Ensure line and area chart
+
         if self.type in {"line", "area"}:
             self.lines = {}
             self.fig = Figure(facecolor=self.bg_color, figsize=figsize)
-            self.canvas = FigureCanvasAgg(self.fig)  # Set common axis properties
+            self.canvas = FigureCanvasAgg(self.fig)
             self.ax = self.fig.add_subplot(111, facecolor=self.bg_color)
             if self.type == "line":
                 (self.line,) = self.ax.plot([], [], color="cyan", linewidth=self.line_width)
         elif self.type in {"bar", "pie"}:
-            # Initialize bar or pie plot
+
             self.fig, self.ax = plt.subplots(figsize=figsize, facecolor=self.bg_color)
-            self.canvas = FigureCanvasAgg(self.fig)  # Set common axis properties
+            self.canvas = FigureCanvasAgg(self.fig)
             self.ax.set_facecolor(self.bg_color)
             self.color_mapping = {}
 
-            if self.type == "pie":  # Ensure pie chart is circular
+            if self.type == "pie":
                 self.ax.axis("equal")
 
     def process(self, im0: np.ndarray, frame_number: int) -> SolutionResults:
@@ -111,7 +111,7 @@ class Analytics(BaseSolution):
             >>> frame = np.zeros((480, 640, 3), dtype=np.uint8)
             >>> results = analytics.process(frame, frame_number=1)
         """
-        self.extract_tracks(im0)  # Extract tracks
+        self.extract_tracks(im0)
         if self.type == "line":
             for _ in self.boxes:
                 self.total_counts += 1
@@ -133,7 +133,7 @@ class Analytics(BaseSolution):
         else:
             raise ValueError(f"Unsupported analytics_type='{self.type}'. Supported types: line, bar, pie, area.")
 
-        # Return results for downstream use.
+
         return SolutionResults(plot_im=plot_im, total_tracks=len(self.track_ids), classwise_count=self.clswise_count)
 
     def update_graph(
@@ -157,7 +157,7 @@ class Analytics(BaseSolution):
             >>> updated_image = analytics.update_graph(frame_num, results_dict, plot="bar")
         """
         if count_dict is None:
-            # Single line update
+
             x_data = np.append(self.line.get_xdata(), float(frame_number))
             y_data = np.append(self.line.get_ydata(), float(self.total_counts))
 
@@ -166,7 +166,7 @@ class Analytics(BaseSolution):
 
             self.line.set_data(x_data, y_data)
             self.line.set_label("Counts")
-            self.line.set_color("#7b0068")  # Pink color
+            self.line.set_color("#7b0068")
             self.line.set_marker("*")
             self.line.set_markersize(self.line_width * 5)
         else:
@@ -174,7 +174,7 @@ class Analytics(BaseSolution):
             counts = list(count_dict.values())
             if plot == "area":
                 color_cycle = cycle(["#DD00BA", "#042AFF", "#FF4447", "#7D24FF", "#BD00FF"])
-                # Multiple lines or area update
+
                 x_data = self.ax.lines[0].get_xdata() if self.ax.lines else np.array([])
                 y_data_dict = {key: np.array([]) for key in count_dict.keys()}
                 if self.ax.lines:
@@ -206,8 +206,8 @@ class Analytics(BaseSolution):
                         label=f"{key} Data Points",
                     )
             elif plot == "bar":
-                self.ax.clear()  # clear bar data
-                for label in labels:  # Map labels to colors
+                self.ax.clear()
+                for label in labels:
                     if label not in self.color_mapping:
                         self.color_mapping[label] = next(self.color_cycle)
                 colors = [self.color_mapping[label] for label in labels]
@@ -221,9 +221,9 @@ class Analytics(BaseSolution):
                         va="bottom",
                         color=self.fg_color,
                     )
-                # Create the legend using labels from the bars
+
                 for bar, label in zip(bars, labels):
-                    bar.set_label(label)  # Assign label to each bar
+                    bar.set_label(label)
                 self.ax.legend(loc="upper left", fontsize=13, facecolor=self.fg_color, edgecolor=self.fg_color)
             elif plot == "pie":
                 total = sum(counts)
@@ -231,29 +231,29 @@ class Analytics(BaseSolution):
                 self.ax.clear()
 
                 start_angle = 90
-                # Create pie chart and create legend labels with percentages
+
                 wedges, _ = self.ax.pie(
                     counts, labels=labels, startangle=start_angle, textprops={"color": self.fg_color}, autopct=None
                 )
                 legend_labels = [f"{label} ({percentage:.1f}%)" for label, percentage in zip(labels, percentages)]
 
-                # Assign the legend using the wedges and manually created labels
-                self.ax.legend(wedges, legend_labels, title="Classes", loc="center left", bbox_to_anchor=(1, 0, 0.5, 1))
-                self.fig.subplots_adjust(left=0.1, right=0.75)  # Adjust layout to fit the legend
 
-        # Common plot settings
-        self.ax.set_facecolor("#f0f0f0")  # Set to light gray or any other color you like
-        self.ax.grid(True, linestyle="--", linewidth=0.5, alpha=0.5)  # Display grid for more data insights
+                self.ax.legend(wedges, legend_labels, title="Classes", loc="center left", bbox_to_anchor=(1, 0, 0.5, 1))
+                self.fig.subplots_adjust(left=0.1, right=0.75)
+
+
+        self.ax.set_facecolor("#f0f0f0")
+        self.ax.grid(True, linestyle="--", linewidth=0.5, alpha=0.5)
         self.ax.set_title(self.title, color=self.fg_color, fontsize=self.fontsize)
         self.ax.set_xlabel(self.x_label, color=self.fg_color, fontsize=self.fontsize - 3)
         self.ax.set_ylabel(self.y_label, color=self.fg_color, fontsize=self.fontsize - 3)
 
-        # Add and format legend
+
         legend = self.ax.legend(loc="upper left", fontsize=13, facecolor=self.bg_color, edgecolor=self.bg_color)
         for text in legend.get_texts():
             text.set_color(self.fg_color)
 
-        # Redraw graph, update view, capture, and display the updated plot
+
         self.ax.relim()
         self.ax.autoscale_view()
         self.canvas.draw()
@@ -261,4 +261,4 @@ class Analytics(BaseSolution):
         im0 = cv2.cvtColor(im0[:, :, :3], cv2.COLOR_RGBA2BGR)
         self.display_output(im0)
 
-        return im0  # Return the image
+        return im0

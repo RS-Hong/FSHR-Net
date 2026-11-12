@@ -64,25 +64,25 @@ class TrackZone(BaseSolution):
             >>> frame = cv2.imread("path/to/image.jpg")
             >>> results = tracker.process(frame)
         """
-        annotator = SolutionAnnotator(im0, line_width=self.line_width)  # Initialize annotator
+        annotator = SolutionAnnotator(im0, line_width=self.line_width)
 
-        if self.mask is None:  # Create a mask for the region
+        if self.mask is None:
             self.mask = np.zeros_like(im0[:, :, 0])
             cv2.fillPoly(self.mask, [self.region], 255)
         masked_frame = cv2.bitwise_and(im0, im0, mask=self.mask)
         self.extract_tracks(masked_frame)
 
-        # Draw the region boundary
+
         cv2.polylines(im0, [self.region], isClosed=True, color=(255, 255, 255), thickness=self.line_width * 2)
 
-        # Iterate over boxes, track ids, classes indexes list and draw bounding boxes
+
         for box, track_id, cls, conf in zip(self.boxes, self.track_ids, self.clss, self.confs):
             annotator.box_label(
                 box, label=self.adjust_box_label(cls, conf, track_id=track_id), color=colors(track_id, True)
             )
 
         plot_im = annotator.result()
-        self.display_output(plot_im)  # Display output with base class function
+        self.display_output(plot_im)
 
-        # Return a SolutionResults
+
         return SolutionResults(plot_im=plot_im, total_tracks=len(self.track_ids))

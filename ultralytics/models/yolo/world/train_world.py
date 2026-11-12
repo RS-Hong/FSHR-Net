@@ -90,7 +90,7 @@ class WorldTrainerFromScratch(WorldTrainer):
             build_yolo_dataset(self.args, im_path, batch, self.training_data[im_path], stride=gs, multi_modal=True)
             if isinstance(im_path, str)
             else build_grounding(
-                # assign `nc` from validation set to max number of text samples for training consistency
+
                 self.args,
                 im_path["img_path"],
                 im_path["json_file"],
@@ -100,7 +100,7 @@ class WorldTrainerFromScratch(WorldTrainer):
             )
             for im_path in img_path
         ]
-        self.set_text_embeddings(datasets, batch)  # cache text embeddings to accelerate training
+        self.set_text_embeddings(datasets, batch)
         return YOLOConcatDataset(datasets) if len(datasets) > 1 else datasets[0]
 
     @staticmethod
@@ -113,7 +113,7 @@ class WorldTrainerFromScratch(WorldTrainer):
         Returns:
             (dict): Data configuration dictionary loaded from YAML file or passed directly.
         """
-        # If string, load from YAML file
+
         if not isinstance(data, dict):
             from ultralytics.utils import YAML
 
@@ -135,18 +135,18 @@ class WorldTrainerFromScratch(WorldTrainer):
         """
         final_data = {}
         self.args.data = data_yaml = self.check_data_config(self.args.data)
-        assert data_yaml.get("train", False), "train dataset not found"  # object365.yaml
-        assert data_yaml.get("val", False), "validation dataset not found"  # lvis.yaml
+        assert data_yaml.get("train", False), "train dataset not found"
+        assert data_yaml.get("val", False), "validation dataset not found"
         data = {k: [check_det_dataset(d) for d in v.get("yolo_data", [])] for k, v in data_yaml.items()}
         assert len(data["val"]) == 1, f"Only support validating on 1 dataset for now, but got {len(data['val'])}."
         val_split = "minival" if "lvis" in data["val"][0]["val"] else "val"
         for d in data["val"]:
-            if d.get("minival") is None:  # for lvis dataset
+            if d.get("minival") is None:
                 continue
             d["minival"] = str(d["path"] / d["minival"])
         for s in {"train", "val"}:
             final_data[s] = [d["train" if s == "train" else val_split] for d in data[s]]
-            # save grounding data if there's one
+
             grounding_data = data_yaml[s].get("grounding_data")
             if grounding_data is None:
                 continue
@@ -156,19 +156,19 @@ class WorldTrainerFromScratch(WorldTrainer):
                 for k in {"img_path", "json_file"}:
                     path = Path(g[k])
                     if not path.exists() and not path.is_absolute():
-                        g[k] = str((DATASETS_DIR / g[k]).resolve())  # path relative to DATASETS_DIR
+                        g[k] = str((DATASETS_DIR / g[k]).resolve())
             final_data[s] += grounding_data
-        # assign the first val dataset as currently only one validation set is supported
+
         data["val"] = data["val"][0]
         final_data["val"] = final_data["val"][0]
-        # NOTE: to make training work properly, set `nc` and `names`
+
         final_data["nc"] = data["val"]["nc"]
         final_data["names"] = data["val"]["names"]
-        # NOTE: add path with lvis path
+
         final_data["path"] = data["val"]["path"]
         final_data["channels"] = data["val"]["channels"]
         self.data = final_data
-        if self.args.single_cls:  # consistent with base trainer
+        if self.args.single_cls:
             LOGGER.info("Overriding class names with single class.")
             self.data["names"] = {0: "object"}
             self.data["nc"] = 1

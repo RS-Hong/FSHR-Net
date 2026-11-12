@@ -71,11 +71,11 @@ class TQDM:
         >>> pbar.close()
     """
 
-    # Constants
-    MIN_RATE_CALC_INTERVAL = 0.01  # Minimum time interval for rate calculation
-    RATE_SMOOTHING_FACTOR = 0.3  # Factor for exponential smoothing of rates
-    MAX_SMOOTHED_RATE = 1000000  # Maximum rate to apply smoothing to
-    NONINTERACTIVE_MIN_INTERVAL = 60.0  # Minimum interval for non-interactive environments
+
+    MIN_RATE_CALC_INTERVAL = 0.01
+    RATE_SMOOTHING_FACTOR = 0.3
+    MAX_SMOOTHED_RATE = 1000000
+    NONINTERACTIVE_MIN_INTERVAL = 60.0
 
     def __init__(
         self,
@@ -89,7 +89,7 @@ class TQDM:
         unit: str = "it",
         unit_scale: bool = True,
         unit_divisor: int = 1000,
-        bar_format: str | None = None,  # kept for API compatibility; not used for formatting
+        bar_format: str | None = None,
         initial: int = 0,
         **kwargs,
     ) -> None:
@@ -110,7 +110,7 @@ class TQDM:
             initial (int, optional): Initial counter value.
             **kwargs (Any): Additional keyword arguments for compatibility (ignored).
         """
-        # Disable if not verbose
+
         if disable is None:
             try:
                 from ultralytics.utils import LOGGER, VERBOSE
@@ -121,7 +121,7 @@ class TQDM:
 
         self.iterable = iterable
         self.desc = desc or ""
-        self.total = total or (len(iterable) if hasattr(iterable, "__len__") else None) or None  # prevent total=0
+        self.total = total or (len(iterable) if hasattr(iterable, "__len__") else None) or None
         self.disable = disable
         self.unit = unit
         self.unit_scale = unit_scale
@@ -131,12 +131,12 @@ class TQDM:
         self.mininterval = max(mininterval, self.NONINTERACTIVE_MIN_INTERVAL) if self.noninteractive else mininterval
         self.initial = initial
 
-        # Kept for API compatibility (unused for f-string formatting)
+
         self.bar_format = bar_format
 
         self.file = file or sys.stdout
 
-        # Internal state
+
         self.n = self.initial
         self.last_print_n = self.initial
         self.last_print_t = time.time()
@@ -160,11 +160,11 @@ class TQDM:
 
         inv_rate = 1 / rate if rate else None
 
-        # Use s/it format when inv_rate > 1 (i.e., rate < 1 it/s) for better readability
+
         if inv_rate and inv_rate > 1:
             return f"{inv_rate:.1f}s/B" if self.is_bytes else f"{inv_rate:.1f}s/{self.unit}"
 
-        # Use it/s format for fast iterations
+
         fallback = f"{rate:.1f}B/s" if self.is_bytes else f"{rate:.1f}{self.unit}/s"
         return next((f"{rate / t:.1f}{u}" for t, u in self.scales if rate >= t), fallback)
 
@@ -220,39 +220,39 @@ class TQDM:
         if not final and not self._should_update(dt, dn):
             return
 
-        # Calculate rate (avoid crazy numbers)
+
         if dt > self.MIN_RATE_CALC_INTERVAL:
             rate = dn / dt if dt else 0.0
-            # Smooth rate for reasonable values, use raw rate for very high values
+
             if rate < self.MAX_SMOOTHED_RATE:
                 self.last_rate = self.RATE_SMOOTHING_FACTOR * rate + (1 - self.RATE_SMOOTHING_FACTOR) * self.last_rate
                 rate = self.last_rate
         else:
             rate = self.last_rate
 
-        # At completion, use overall rate
+
         if self.total and self.n >= self.total:
             overall_elapsed = current_time - self.start_t
             if overall_elapsed > 0:
                 rate = self.n / overall_elapsed
 
-        # Update counters
+
         self.last_print_n = self.n
         self.last_print_t = current_time
         elapsed = current_time - self.start_t
 
-        # Remaining time
+
         remaining_str = ""
         if self.total and 0 < self.n < self.total and elapsed > 0:
             est_rate = rate or (self.n / elapsed)
             remaining_str = f"<{self._format_time((self.total - self.n) / est_rate)}"
 
-        # Numbers and percent
+
         if self.total:
             percent = (self.n / self.total) * 100
             n_str = self._format_num(self.n)
             t_str = self._format_num(self.total)
-            if self.is_bytes and n_str[-2] == t_str[-2]:  # Collapse suffix only when identical (e.g. "5.4/5.4MB")
+            if self.is_bytes and n_str[-2] == t_str[-2]:
                 n_str = n_str.rstrip("KMGTPB")
         else:
             percent = 0.0
@@ -263,10 +263,10 @@ class TQDM:
 
         bar = self._generate_bar()
 
-        # Compose progress line via f-strings (two shapes: with/without total)
+
         if self.total:
             if self.is_bytes and self.n >= self.total:
-                # Completed bytes: show only final size
+
                 progress_str = f"{self.desc}: {percent:.0f}% {bar} {t_str} {rate_str} {elapsed_str}"
             else:
                 progress_str = (
@@ -275,13 +275,13 @@ class TQDM:
         else:
             progress_str = f"{self.desc}: {bar} {n_str} {rate_str} {elapsed_str}"
 
-        # Write to output
+
         try:
             if self.noninteractive:
-                # In non-interactive environments, avoid carriage return which creates empty lines
+
                 self.file.write(progress_str)
             else:
-                # In interactive terminals, use carriage return and clear line for updating display
+
                 self.file.write(f"\r\033[K{progress_str}")
             self.file.flush()
         except Exception:
@@ -314,15 +314,15 @@ class TQDM:
         self.closed = True
 
         if not self.disable:
-            # Final display
+
             if self.total and self.n >= self.total:
                 self.n = self.total
-                if self.n != self.last_print_n:  # Skip if 100% already shown
+                if self.n != self.last_print_n:
                     self._display(final=True)
             else:
                 self._display(final=True)
 
-            # Cleanup
+
             if self.leave:
                 self.file.write("\n")
             else:
@@ -414,7 +414,7 @@ if __name__ == "__main__":
     with TQDM(desc="Processing stream", unit="B", unit_scale=True, unit_divisor=1024) as pbar:
         for i in range(30):
             time.sleep(0.1)
-            pbar.update(1024 * 1024 * i)  # Simulate processing MB of data
+            pbar.update(1024 * 1024 * i)
 
     print("\n5. Iterator with unknown length:")
 

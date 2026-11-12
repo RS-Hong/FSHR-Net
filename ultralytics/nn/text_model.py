@@ -198,7 +198,7 @@ class MobileCLIP(TextModel):
         try:
             import mobileclip
         except ImportError:
-            # Ultralytics fork preferred since Apple MobileCLIP repo has incorrect version of torchvision
+
             checks.check_requirements("git+https://github.com/ultralytics/mobileclip.git")
             import mobileclip
 
@@ -330,7 +330,7 @@ class MobileCLIPTS(TextModel):
             >>> features.shape
             torch.Size([2, 512])  # Actual dimension depends on model size
         """
-        # NOTE: no need to do normalization here as it's embedded in the torchscript model
+
         return self.encoder(texts).to(dtype)
 
 

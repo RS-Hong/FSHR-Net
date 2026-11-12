@@ -88,48 +88,48 @@ class Tuner:
             args (dict): Configuration for hyperparameter evolution.
             _callbacks (list | None, optional): Callback functions to be executed during tuning.
         """
-        self.space = args.pop("space", None) or {  # key: (min, max, gain(optional))
-            # 'optimizer': tune.choice(['SGD', 'Adam', 'AdamW', 'NAdam', 'RAdam', 'RMSProp']),
-            "lr0": (1e-5, 1e-2),  # initial learning rate (i.e. SGD=1E-2, Adam=1E-3)
-            "lrf": (0.01, 1.0),  # final OneCycleLR learning rate (lr0 * lrf)
-            "momentum": (0.7, 0.98, 0.3),  # SGD momentum/Adam beta1
-            "weight_decay": (0.0, 0.001),  # optimizer weight decay 5e-4
-            "warmup_epochs": (0.0, 5.0),  # warmup epochs (fractions ok)
-            "warmup_momentum": (0.0, 0.95),  # warmup initial momentum
-            "box": (1.0, 20.0),  # box loss gain
-            "cls": (0.1, 4.0),  # cls loss gain (scale with pixels)
-            "dfl": (0.4, 12.0),  # dfl loss gain
-            "hsv_h": (0.0, 0.1),  # image HSV-Hue augmentation (fraction)
-            "hsv_s": (0.0, 0.9),  # image HSV-Saturation augmentation (fraction)
-            "hsv_v": (0.0, 0.9),  # image HSV-Value augmentation (fraction)
-            "degrees": (0.0, 45.0),  # image rotation (+/- deg)
-            "translate": (0.0, 0.9),  # image translation (+/- fraction)
-            "scale": (0.0, 0.95),  # image scale (+/- gain)
-            "shear": (0.0, 10.0),  # image shear (+/- deg)
-            "perspective": (0.0, 0.001),  # image perspective (+/- fraction), range 0-0.001
-            "flipud": (0.0, 1.0),  # image flip up-down (probability)
-            "fliplr": (0.0, 1.0),  # image flip left-right (probability)
-            "bgr": (0.0, 1.0),  # image channel bgr (probability)
-            "mosaic": (0.0, 1.0),  # image mosaic (probability)
-            "mixup": (0.0, 1.0),  # image mixup (probability)
-            "cutmix": (0.0, 1.0),  # image cutmix (probability)
-            "copy_paste": (0.0, 1.0),  # segment copy-paste (probability)
-            "close_mosaic": (0.0, 10.0),  # close dataloader mosaic (epochs)
+        self.space = args.pop("space", None) or {
+
+            "lr0": (1e-5, 1e-2),
+            "lrf": (0.01, 1.0),
+            "momentum": (0.7, 0.98, 0.3),
+            "weight_decay": (0.0, 0.001),
+            "warmup_epochs": (0.0, 5.0),
+            "warmup_momentum": (0.0, 0.95),
+            "box": (1.0, 20.0),
+            "cls": (0.1, 4.0),
+            "dfl": (0.4, 12.0),
+            "hsv_h": (0.0, 0.1),
+            "hsv_s": (0.0, 0.9),
+            "hsv_v": (0.0, 0.9),
+            "degrees": (0.0, 45.0),
+            "translate": (0.0, 0.9),
+            "scale": (0.0, 0.95),
+            "shear": (0.0, 10.0),
+            "perspective": (0.0, 0.001),
+            "flipud": (0.0, 1.0),
+            "fliplr": (0.0, 1.0),
+            "bgr": (0.0, 1.0),
+            "mosaic": (0.0, 1.0),
+            "mixup": (0.0, 1.0),
+            "cutmix": (0.0, 1.0),
+            "copy_paste": (0.0, 1.0),
+            "close_mosaic": (0.0, 10.0),
         }
         mongodb_uri = args.pop("mongodb_uri", None)
         mongodb_db = args.pop("mongodb_db", "ultralytics")
         mongodb_collection = args.pop("mongodb_collection", "tuner_results")
 
         self.args = get_cfg(overrides=args)
-        self.args.exist_ok = self.args.resume  # resume w/ same tune_dir
+        self.args.exist_ok = self.args.resume
         self.tune_dir = get_save_dir(self.args, name=self.args.name or "tune")
-        self.args.name, self.args.exist_ok, self.args.resume = (None, False, False)  # reset to not affect training
+        self.args.name, self.args.exist_ok, self.args.resume = (None, False, False)
         self.tune_csv = self.tune_dir / "tune_results.csv"
         self.callbacks = _callbacks or callbacks.get_default_callbacks()
         self.prefix = colorstr("Tuner: ")
         callbacks.add_integration_callbacks(self)
 
-        # MongoDB Atlas support (optional)
+
         self.mongodb = None
         if mongodb_uri:
             self._init_mongodb(mongodb_uri, mongodb_db, mongodb_collection)
@@ -167,7 +167,7 @@ class Tuner:
                     minPoolSize=3,
                     maxIdleTimeMS=60000,
                 )
-                client.admin.command("ping")  # Test connection
+                client.admin.command("ping")
                 LOGGER.info(f"{self.prefix}Connected to MongoDB Atlas (attempt {attempt + 1})")
                 return client
             except (ConnectionFailure, ServerSelectionTimeoutError):
@@ -243,12 +243,12 @@ class Tuner:
         the existing plotting functions to work seamlessly with distributed MongoDB data.
         """
         try:
-            # Get all results from MongoDB
+
             all_results = list(self.collection.find().sort("iteration", 1))
             if not all_results:
                 return
 
-            # Write to CSV
+
             headers = ",".join(["fitness", *list(self.space.keys())]) + "\n"
             with open(self.tune_csv, "w", encoding="utf-8") as f:
                 f.write(headers)
@@ -265,15 +265,15 @@ class Tuner:
     def _crossover(x: np.ndarray, alpha: float = 0.2, k: int = 9) -> np.ndarray:
         """BLX-α crossover from up to top-k parents (x[:,0]=fitness, rest=genes)."""
         k = min(k, len(x))
-        # fitness weights (shifted to >0); fallback to uniform if degenerate
+
         weights = x[:, 0] - x[:, 0].min() + 1e-6
         if not np.isfinite(weights).all() or weights.sum() == 0:
             weights = np.ones_like(weights)
         idxs = random.choices(range(len(x)), weights=weights, k=k)
-        parents_mat = np.stack([x[i][1:] for i in idxs], 0)  # (k, ng) strip fitness
+        parents_mat = np.stack([x[i][1:] for i in idxs], 0)
         lo, hi = parents_mat.min(0), parents_mat.max(0)
         span = hi - lo
-        # given a small value when span is zero to avoid no mutation
+
         span = np.where(span == 0, np.random.uniform(0.01, 0.1, span.shape), span)
         return np.random.uniform(lo - alpha * span, hi + alpha * span)
 
@@ -295,39 +295,39 @@ class Tuner:
         """
         x = None
 
-        # Try MongoDB first if available
+
         if self.mongodb:
             if results := self._get_mongodb_results(n):
-                # MongoDB already sorted by fitness DESC, so results[0] is best
+
                 x = np.array(
                     [
                         [r["fitness"]] + [r["hyperparameters"].get(k, self.args.get(k)) for k in self.space.keys()]
                         for r in results
                     ]
                 )
-            elif self.collection.name in self.collection.database.list_collection_names():  # Tuner started elsewhere
+            elif self.collection.name in self.collection.database.list_collection_names():
                 x = np.array([[0.0] + [getattr(self.args, k) for k in self.space.keys()]])
 
-        # Fall back to CSV if MongoDB unavailable or empty
+
         if x is None and self.tune_csv.exists():
             csv_data = np.loadtxt(self.tune_csv, ndmin=2, delimiter=",", skiprows=1)
             if len(csv_data) > 0:
-                fitness = csv_data[:, 0]  # first column
+                fitness = csv_data[:, 0]
                 order = np.argsort(-fitness)
-                x = csv_data[order][:n]  # top-n sorted by fitness DESC
+                x = csv_data[order][:n]
 
-        # Mutate if we have data, otherwise use defaults
+
         if x is not None:
             np.random.seed(int(time.time()))
             ng = len(self.space)
 
-            # Crossover
+
             genes = self._crossover(x)
 
-            # Mutation
-            gains = np.array([v[2] if len(v) == 3 else 1.0 for v in self.space.values()])  # gains 0-1
+
+            gains = np.array([v[2] if len(v) == 3 else 1.0 for v in self.space.values()])
             factors = np.ones(ng)
-            while np.all(factors == 1):  # mutate until a change occurs (prevent duplicates)
+            while np.all(factors == 1):
                 mask = np.random.random(ng) < mutation
                 step = np.random.randn(ng) * (sigma * gains)
                 factors = np.where(mask, np.exp(step), 1.0).clip(0.25, 4.0)
@@ -335,11 +335,11 @@ class Tuner:
         else:
             hyp = {k: getattr(self.args, k) for k in self.space.keys()}
 
-        # Constrain to limits
+
         for k, bounds in self.space.items():
             hyp[k] = round(min(max(hyp[k], bounds[0]), bounds[1]), 5)
 
-        # Update types
+
         if "close_mosaic" in hyp:
             hyp["close_mosaic"] = round(hyp["close_mosaic"])
         if "epochs" in hyp:
@@ -365,7 +365,7 @@ class Tuner:
         best_save_dir, best_metrics = None, None
         (self.tune_dir / "weights").mkdir(parents=True, exist_ok=True)
 
-        # Sync MongoDB to CSV at startup for proper resume logic
+
         if self.mongodb:
             self._sync_mongodb_to_csv()
 
@@ -375,29 +375,29 @@ class Tuner:
             start = x.shape[0]
             LOGGER.info(f"{self.prefix}Resuming tuning run {self.tune_dir} from iteration {start + 1}...")
         for i in range(start, iterations):
-            # Linearly decay sigma from 0.2 → 0.1 over first 300 iterations
+
             frac = min(i / 300.0, 1.0)
             sigma_i = 0.2 - 0.1 * frac
 
-            # Mutate hyperparameters
+
             mutated_hyp = self._mutate(sigma=sigma_i)
             LOGGER.info(f"{self.prefix}Starting iteration {i + 1}/{iterations} with hyperparameters: {mutated_hyp}")
 
             metrics = {}
             train_args = {**vars(self.args), **mutated_hyp}
             save_dir = get_save_dir(get_cfg(train_args))
-            train_args["save_dir"] = str(save_dir)  # pass save_dir to subprocess to ensure same path is used
+            train_args["save_dir"] = str(save_dir)
             weights_dir = save_dir / "weights"
             try:
-                # Train YOLO model with mutated hyperparameters (run in subprocess to avoid dataloader hang)
-                launch = [__import__("sys").executable, "-m", "ultralytics.cfg.__init__"]  # workaround yolo not found
+
+                launch = [__import__("sys").executable, "-m", "ultralytics.cfg.__init__"]
                 cmd = [*launch, "train", *(f"{k}={v}" for k, v in train_args.items())]
                 return_code = subprocess.run(cmd, check=True).returncode
                 ckpt_file = weights_dir / ("best.pt" if (weights_dir / "best.pt").exists() else "last.pt")
                 metrics = torch_load(ckpt_file)["train_metrics"]
                 assert return_code == 0, "training failed"
 
-                # Cleanup
+
                 time.sleep(1)
                 gc.collect()
                 torch.cuda.empty_cache()
@@ -405,7 +405,7 @@ class Tuner:
             except Exception as e:
                 LOGGER.error(f"training failure for hyperparameter tuning iteration {i + 1}\n{e}")
 
-            # Save results - MongoDB takes precedence
+
             fitness = metrics.get("fitness", 0.0)
             if self.mongodb:
                 self._save_to_mongodb(fitness, mutated_hyp, metrics, i + 1)
@@ -417,15 +417,15 @@ class Tuner:
                     )
                     break
             else:
-                # Save to CSV only if no MongoDB
+
                 log_row = [round(fitness, 5)] + [mutated_hyp[k] for k in self.space.keys()]
                 headers = "" if self.tune_csv.exists() else (",".join(["fitness", *list(self.space.keys())]) + "\n")
                 with open(self.tune_csv, "a", encoding="utf-8") as f:
                     f.write(headers + ",".join(map(str, log_row)) + "\n")
 
-            # Get best results
+
             x = np.loadtxt(self.tune_csv, ndmin=2, delimiter=",", skiprows=1)
-            fitness = x[:, 0]  # first column
+            fitness = x[:, 0]
             best_idx = fitness.argmax()
             best_is_current = best_idx == i
             if best_is_current:
@@ -434,12 +434,12 @@ class Tuner:
                 for ckpt in weights_dir.glob("*.pt"):
                     shutil.copy2(ckpt, self.tune_dir / "weights")
             elif cleanup and best_save_dir:
-                shutil.rmtree(best_save_dir, ignore_errors=True)  # remove iteration dirs to reduce storage space
+                shutil.rmtree(best_save_dir, ignore_errors=True)
 
-            # Plot tune results
+
             plot_tune_results(str(self.tune_csv))
 
-            # Save and print tune results
+
             header = (
                 f"{self.prefix}{i + 1}/{iterations} iterations complete ✅ ({time.time() - t0:.2f}s)\n"
                 f"{self.prefix}Results saved to {colorstr('bold', self.tune_dir)}\n"

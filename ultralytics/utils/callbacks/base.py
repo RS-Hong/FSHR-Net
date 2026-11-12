@@ -4,7 +4,7 @@
 from collections import defaultdict
 from copy import deepcopy
 
-# Trainer callbacks ----------------------------------------------------------------------------------------------------
+
 
 
 def on_pretrain_routine_start(trainer):
@@ -77,7 +77,7 @@ def teardown(trainer):
     pass
 
 
-# Validator callbacks --------------------------------------------------------------------------------------------------
+
 
 
 def on_val_start(validator):
@@ -100,7 +100,7 @@ def on_val_end(validator):
     pass
 
 
-# Predictor callbacks --------------------------------------------------------------------------------------------------
+
 
 
 def on_predict_start(predictor):
@@ -128,7 +128,7 @@ def on_predict_end(predictor):
     pass
 
 
-# Exporter callbacks ---------------------------------------------------------------------------------------------------
+
 
 
 def on_export_start(exporter):
@@ -142,7 +142,7 @@ def on_export_end(exporter):
 
 
 default_callbacks = {
-    # Run in trainer
+
     "on_pretrain_routine_start": [on_pretrain_routine_start],
     "on_pretrain_routine_end": [on_pretrain_routine_end],
     "on_train_start": [on_train_start],
@@ -152,23 +152,23 @@ default_callbacks = {
     "on_before_zero_grad": [on_before_zero_grad],
     "on_train_batch_end": [on_train_batch_end],
     "on_train_epoch_end": [on_train_epoch_end],
-    "on_fit_epoch_end": [on_fit_epoch_end],  # fit = train + val
+    "on_fit_epoch_end": [on_fit_epoch_end],
     "on_model_save": [on_model_save],
     "on_train_end": [on_train_end],
     "on_params_update": [on_params_update],
     "teardown": [teardown],
-    # Run in validator
+
     "on_val_start": [on_val_start],
     "on_val_batch_start": [on_val_batch_start],
     "on_val_batch_end": [on_val_batch_end],
     "on_val_end": [on_val_end],
-    # Run in predictor
+
     "on_predict_start": [on_predict_start],
     "on_predict_batch_start": [on_predict_batch_start],
     "on_predict_postprocess_end": [on_predict_postprocess_end],
     "on_predict_batch_end": [on_predict_batch_end],
     "on_predict_end": [on_predict_end],
-    # Run in exporter
+
     "on_export_start": [on_export_start],
     "on_export_end": [on_export_end],
 }
@@ -210,10 +210,10 @@ def add_integration_callbacks(instance):
     from .hub import callbacks as hub_cb
     from .platform import callbacks as platform_cb
 
-    # Load Ultralytics callbacks
+
     callbacks_list = [hub_cb, platform_cb]
 
-    # Load training callbacks
+
     if "Trainer" in instance.__class__.__name__:
         from .clearml import callbacks as clear_cb
         from .comet import callbacks as comet_cb
@@ -226,7 +226,7 @@ def add_integration_callbacks(instance):
 
         callbacks_list.extend([clear_cb, comet_cb, dvc_cb, mlflow_cb, neptune_cb, tune_cb, tb_cb, wb_cb])
 
-    # Add the callbacks to the callbacks dictionary
+
     for callbacks in callbacks_list:
         for k, v in callbacks.items():
             if v not in instance.callbacks[k]:

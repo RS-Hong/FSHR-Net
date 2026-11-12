@@ -36,10 +36,10 @@ class DistanceCalculation(BaseSolution):
         """Initialize the DistanceCalculation class for measuring object distances in video streams."""
         super().__init__(**kwargs)
 
-        # Mouse event information
+
         self.left_mouse_count = 0
         self.selected_boxes: dict[int, list[float]] = {}
-        self.centroids: list[list[int]] = []  # Store centroids of selected objects
+        self.centroids: list[list[int]] = []
 
     def mouse_event_for_distance(self, event: int, x: int, y: int, flags: int, param: Any) -> None:
         """Handle mouse events to select regions in a real-time video stream for distance calculation.
@@ -88,36 +88,36 @@ class DistanceCalculation(BaseSolution):
             >>> results = dc.process(frame)
             >>> print(f"Distance: {results.pixels_distance:.2f} pixels")
         """
-        self.extract_tracks(im0)  # Extract tracks
-        annotator = SolutionAnnotator(im0, line_width=self.line_width)  # Initialize annotator
+        self.extract_tracks(im0)
+        annotator = SolutionAnnotator(im0, line_width=self.line_width)
 
         pixels_distance = 0
-        # Iterate over bounding boxes, track ids and classes index
+
         for box, track_id, cls, conf in zip(self.boxes, self.track_ids, self.clss, self.confs):
             annotator.box_label(box, color=colors(int(cls), True), label=self.adjust_box_label(cls, conf, track_id))
 
-            # Update selected boxes if they're being tracked
+
             if len(self.selected_boxes) == 2:
                 for trk_id in self.selected_boxes.keys():
                     if trk_id == track_id:
                         self.selected_boxes[track_id] = box
 
         if len(self.selected_boxes) == 2:
-            # Calculate centroids of selected boxes
+
             self.centroids.extend(
                 [[int((box[0] + box[2]) // 2), int((box[1] + box[3]) // 2)] for box in self.selected_boxes.values()]
             )
-            # Calculate Euclidean distance between centroids
+
             pixels_distance = math.sqrt(
                 (self.centroids[0][0] - self.centroids[1][0]) ** 2 + (self.centroids[0][1] - self.centroids[1][1]) ** 2
             )
             annotator.plot_distance_and_line(pixels_distance, self.centroids)
 
-        self.centroids = []  # Reset centroids for next frame
+        self.centroids = []
         plot_im = annotator.result()
-        self.display_output(plot_im)  # Display output with base class function
+        self.display_output(plot_im)
         if self.CFG.get("show") and self.env_check:
             cv2.setMouseCallback("Ultralytics Solutions", self.mouse_event_for_distance)
 
-        # Return SolutionResults with processed image and calculated metrics
+
         return SolutionResults(plot_im=plot_im, pixels_distance=pixels_distance, total_tracks=len(self.track_ids))

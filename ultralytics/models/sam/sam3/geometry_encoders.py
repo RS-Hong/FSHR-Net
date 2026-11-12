@@ -54,12 +54,12 @@ def concat_padded_sequences(seq1, mask1, seq2, mask2, return_index: bool = False
         torch.arange(max_length, device=seq2.device)[None].repeat(batch_size, 1) >= final_lengths[:, None]
     )
 
-    # (max_len, batch_size, hidden_size)
+
     concatenated_sequence = torch.zeros((max_length, batch_size, hidden_size), device=seq2.device, dtype=seq2.dtype)
     concatenated_sequence[:seq1_length, :, :] = seq1
 
-    # At this point, the element of seq1 are in the right place
-    # We just need to shift the elements of seq2
+
+
 
     index = torch.arange(seq2_length, device=seq2.device)[:, None].repeat(1, batch_size)
     index = index + actual_seq1_lengths[None]
@@ -88,26 +88,26 @@ class Prompt:
 
     def __init__(self, box_embeddings=None, box_mask=None, box_labels=None):
         """Initialize the Prompt object."""
-        # Check for null prompt
-        # Check for null prompt
+
+
         if box_embeddings is None:
             self.box_embeddings = None
             self.box_labels = None
             self.box_mask = None
             return
 
-        # Get sequence length, batch size, and device
+
         box_seq_len = box_embeddings.shape[0]
         bs = box_embeddings.shape[1]
         device = box_embeddings.device
 
-        # Initialize labels and attention mask if not provided
+
         if box_labels is None:
             box_labels = torch.ones(box_seq_len, bs, device=device, dtype=torch.long)
         if box_mask is None:
             box_mask = torch.zeros(bs, box_seq_len, device=device, dtype=torch.bool)
 
-        # Dimension checks
+
         assert list(box_embeddings.shape[:2]) == [box_seq_len, bs], (
             f"Wrong dimension for box embeddings. Expected [{box_seq_len}, {bs}, *] got {box_embeddings.shape}"
         )
@@ -121,7 +121,7 @@ class Prompt:
             f"Wrong dimension for box labels. Expected [{box_seq_len}, {bs}] got {box_labels.shape}"
         )
 
-        # Device checks
+
         assert box_embeddings.device == device, (
             f"Expected box embeddings to be on device {device}, got {box_embeddings.device}"
         )
@@ -141,7 +141,7 @@ class Prompt:
             mask: Optional tensor of shape (B, N_new_boxes) for attention mask
         """
         if self.box_embeddings is None:
-            # First boxes - initialize
+
             self.box_embeddings = boxes
             bs = boxes.shape[1]
             box_seq_len = boxes.shape[0]
@@ -155,7 +155,7 @@ class Prompt:
             self.box_mask = mask
             return
 
-        # Append to existing boxes
+
         bs = self.box_embeddings.shape[1]
         assert boxes.shape[1] == bs, f"Batch size mismatch: expected {bs}, got {boxes.shape[1]}"
 
@@ -168,7 +168,7 @@ class Prompt:
             f"Shape mismatch between boxes {boxes.shape} and labels {labels.shape}"
         )
 
-        # Concatenate using the helper function
+
         self.box_labels, _ = concat_padded_sequences(
             self.box_labels.unsqueeze(-1), self.box_mask, labels.unsqueeze(-1), mask
         )
@@ -214,23 +214,23 @@ class SequenceGeometryEncoder(nn.Module):
         self.encode_boxes_as_points = encode_boxes_as_points
         self.roi_size = roi_size
 
-        # Label embeddings: 2 labels if encoding as boxes (pos/neg)
-        # 6 labels if encoding as points (regular pos/neg, top-left pos/neg, bottom-right pos/neg)
+
+
         num_labels = 6 if self.encode_boxes_as_points else 2
         self.label_embed = torch.nn.Embedding(num_labels, self.d_model)
 
-        # CLS token for pooling
+
         self.cls_embed = None
         if add_cls:
             self.cls_embed = torch.nn.Embedding(1, self.d_model)
 
-        # Point encoding (used when encode_boxes_as_points is True)
+
         if encode_boxes_as_points:
             self.points_direct_project = nn.Linear(2, self.d_model)
             self.points_pool_project = None
             self.points_pos_enc_project = None
         else:
-            # Box encoding modules
+
             assert boxes_direct_project or boxes_pos_enc or boxes_pool, "Error: need at least one way to encode boxes"
             self.points_direct_project = None
             self.points_pool_project = None
@@ -266,10 +266,10 @@ class SequenceGeometryEncoder(nn.Module):
 
     def _encode_points(self, points, points_mask, points_labels, img_feats):
         """Encode points (used when boxes are converted to corner points)."""
-        # Direct projection of coordinates
+
         points_embed = self.points_direct_project(points.to(img_feats.dtype))
 
-        # Add label embeddings
+
         type_embed = self.label_embed(points_labels.long())
         return type_embed + points_embed, points_mask
 
@@ -285,14 +285,14 @@ class SequenceGeometryEncoder(nn.Module):
         if self.boxes_pool_project is not None:
             H, W = img_feats.shape[-2:]
 
-            # Convert boxes to xyxy format and denormalize
+
             boxes_xyxy = xywh2xyxy(boxes.to(img_feats.dtype))
             scale = torch.tensor([W, H, W, H], dtype=boxes_xyxy.dtype)
             scale = scale.to(device=boxes_xyxy.device, non_blocking=True)
             scale = scale.view(1, 1, 4)
             boxes_xyxy = boxes_xyxy * scale
 
-            # RoI align
+
             sampled = torchvision.ops.roi_align(img_feats, boxes_xyxy.transpose(0, 1).unbind(0), self.roi_size)
             assert list(sampled.shape) == [
                 bs * n_boxes,
@@ -319,7 +319,7 @@ class SequenceGeometryEncoder(nn.Module):
             else:
                 boxes_embed = boxes_embed + proj
 
-        # Add label embeddings
+
         type_embed = self.label_embed(boxes_labels.long())
         return type_embed + boxes_embed, boxes_mask
 
@@ -339,12 +339,12 @@ class SequenceGeometryEncoder(nn.Module):
         boxes_mask = geo_prompt.box_mask
         boxes_labels = geo_prompt.box_labels
 
-        seq_first_img_feats = img_feats[-1]  # [H*W, B, C]
+        seq_first_img_feats = img_feats[-1]
         seq_first_img_pos_embeds = (
             img_pos_embeds[-1] if img_pos_embeds is not None else torch.zeros_like(seq_first_img_feats)
         )
 
-        # Prepare image features for pooling if needed
+
         if self.points_pool_project or self.boxes_pool_project:
             assert len(img_feats) == len(img_sizes)
             cur_img_feat = img_feats[-1]
@@ -352,23 +352,23 @@ class SequenceGeometryEncoder(nn.Module):
             H, W = img_sizes[-1]
             assert cur_img_feat.shape[0] == H * W
             N, C = cur_img_feat.shape[-2:]
-            # Reshape to NxCxHxW
+
             cur_img_feat = cur_img_feat.permute(1, 2, 0)
             cur_img_feat = cur_img_feat.view(N, C, H, W)
             img_feats = cur_img_feat
 
         if self.encode_boxes_as_points:
-            # Convert boxes to corner points
+
             assert boxes is not None and boxes.shape[-1] == 4
 
             boxes_xyxy = xywh2xyxy(boxes)
             top_left, bottom_right = boxes_xyxy.split(split_size=2, dim=-1)
 
-            # Adjust labels for corner points (offset by 2 and 4)
+
             labels_tl = boxes_labels + 2
             labels_br = boxes_labels + 4
 
-            # Concatenate top-left and bottom-right points
+
             points = torch.cat([top_left, bottom_right], dim=0)
             points_labels = torch.cat([labels_tl, labels_br], dim=0)
             points_mask = torch.cat([boxes_mask, boxes_mask], dim=1)
@@ -380,7 +380,7 @@ class SequenceGeometryEncoder(nn.Module):
                 img_feats=img_feats,
             )
         else:
-            # Encode boxes directly
+
             final_embeds, final_mask = self._encode_boxes(
                 boxes=boxes,
                 boxes_mask=boxes_mask,
@@ -391,17 +391,17 @@ class SequenceGeometryEncoder(nn.Module):
         bs = final_embeds.shape[1]
         assert final_mask.shape[0] == bs
 
-        # Add CLS token if configured
+
         if self.cls_embed is not None:
             cls = self.cls_embed.weight.view(1, 1, self.d_model).repeat(1, bs, 1)
             cls_mask = torch.zeros(bs, 1, dtype=final_mask.dtype, device=final_mask.device)
             final_embeds, final_mask = concat_padded_sequences(final_embeds, final_mask, cls, cls_mask)
 
-        # Final projection
+
         if self.final_proj is not None:
             final_embeds = self.norm(self.final_proj(final_embeds))
 
-        # Transformer encoding layers
+
         if self.encode is not None:
             for lay in self.encode:
                 final_embeds = lay(

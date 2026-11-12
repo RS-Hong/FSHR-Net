@@ -64,23 +64,23 @@ def split_classify_dataset(source_dir: str | Path, train_ratio: float = 0.8) -> 
     split_path = Path(f"{source_path}_split")
     train_path, val_path = split_path / "train", split_path / "val"
 
-    # Create directory structure
+
     split_path.mkdir(exist_ok=True)
     train_path.mkdir(exist_ok=True)
     val_path.mkdir(exist_ok=True)
 
-    # Process class directories
+
     class_dirs = [d for d in source_path.iterdir() if d.is_dir()]
     total_images = sum(len(list(d.glob("*.*"))) for d in class_dirs)
     stats = f"{len(class_dirs)} classes, {total_images} images"
     LOGGER.info(f"Splitting {source_path} ({stats}) into {train_ratio:.0%} train, {1 - train_ratio:.0%} val...")
 
     for class_dir in class_dirs:
-        # Create class directories
+
         (train_path / class_dir.name).mkdir(exist_ok=True)
         (val_path / class_dir.name).mkdir(exist_ok=True)
 
-        # Split and copy files
+
         image_files = list(class_dir.glob("*.*"))
         random.shuffle(image_files)
         split_idx = int(len(image_files) * train_ratio)
@@ -116,22 +116,22 @@ def autosplit(
         Split with custom weights and annotated images only
         >>> autosplit(path="path/to/images", weights=(0.8, 0.15, 0.05), annotated_only=True)
     """
-    path = Path(path)  # images dir
-    files = sorted(x for x in path.rglob("*.*") if x.suffix[1:].lower() in IMG_FORMATS)  # image files only
-    n = len(files)  # number of files
-    random.seed(0)  # for reproducibility
-    indices = random.choices([0, 1, 2], weights=weights, k=n)  # assign each image to a split
+    path = Path(path)
+    files = sorted(x for x in path.rglob("*.*") if x.suffix[1:].lower() in IMG_FORMATS)
+    n = len(files)
+    random.seed(0)
+    indices = random.choices([0, 1, 2], weights=weights, k=n)
 
-    txt = ["autosplit_train.txt", "autosplit_val.txt", "autosplit_test.txt"]  # 3 txt files
+    txt = ["autosplit_train.txt", "autosplit_val.txt", "autosplit_test.txt"]
     for x in txt:
         if (path.parent / x).exists():
-            (path.parent / x).unlink()  # remove existing
+            (path.parent / x).unlink()
 
     LOGGER.info(f"Autosplitting images from {path}" + ", using *.txt labeled images only" * annotated_only)
     for i, img in TQDM(zip(indices, files), total=n):
-        if not annotated_only or Path(img2label_paths([str(img)])[0]).exists():  # check label
+        if not annotated_only or Path(img2label_paths([str(img)])[0]).exists():
             with open(path.parent / txt[i], "a", encoding="utf-8") as f:
-                f.write(f"./{img.relative_to(path.parent).as_posix()}" + "\n")  # add image to txt file
+                f.write(f"./{img.relative_to(path.parent).as_posix()}" + "\n")
 
 
 if __name__ == "__main__":

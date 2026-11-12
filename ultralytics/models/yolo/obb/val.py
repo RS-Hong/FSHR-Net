@@ -66,9 +66,9 @@ class OBBValidator(DetectionValidator):
             model (torch.nn.Module): Model to validate.
         """
         super().init_metrics(model)
-        val = self.data.get(self.args.split, "")  # validation path
-        self.is_dota = isinstance(val, str) and "DOTA" in val  # check if dataset is DOTA format
-        self.confusion_matrix.task = "obb"  # set confusion matrix task to 'obb'
+        val = self.data.get(self.args.split, "")
+        self.is_dota = isinstance(val, str) and "DOTA" in val
+        self.confusion_matrix.task = "obb"
 
     def _process_batch(self, preds: dict[str, torch.Tensor], batch: dict[str, torch.Tensor]) -> dict[str, np.ndarray]:
         """Compute the correct prediction matrix for a batch of detections and ground truth bounding boxes.
@@ -106,7 +106,7 @@ class OBBValidator(DetectionValidator):
         """
         preds = super().postprocess(preds)
         for pred in preds:
-            pred["bboxes"] = torch.cat([pred["bboxes"], pred.pop("extra")], dim=-1)  # concatenate angle
+            pred["bboxes"] = torch.cat([pred["bboxes"], pred.pop("extra")], dim=-1)
         return preds
 
     def _prepare_batch(self, si: int, batch: dict[str, Any]) -> dict[str, Any]:
@@ -132,7 +132,7 @@ class OBBValidator(DetectionValidator):
         imgsz = batch["img"].shape[2:]
         ratio_pad = batch["ratio_pad"][si]
         if cls.shape[0]:
-            bbox[..., :4].mul_(torch.tensor(imgsz, device=self.device)[[1, 0, 1, 0]])  # target boxes
+            bbox[..., :4].mul_(torch.tensor(imgsz, device=self.device)[[1, 0, 1, 0]])
         return {
             "cls": cls,
             "bboxes": bbox,
@@ -250,11 +250,11 @@ class OBBValidator(DetectionValidator):
             import re
             from collections import defaultdict
 
-            pred_json = self.save_dir / "predictions.json"  # predictions
-            pred_txt = self.save_dir / "predictions_txt"  # predictions
+            pred_json = self.save_dir / "predictions.json"
+            pred_txt = self.save_dir / "predictions_txt"
             pred_txt.mkdir(parents=True, exist_ok=True)
             data = json.load(open(pred_json))
-            # Save split results
+
             LOGGER.info(f"Saving predictions with DOTA format to {pred_txt}...")
             for d in data:
                 image_id = d["image_id"]
@@ -264,9 +264,9 @@ class OBBValidator(DetectionValidator):
 
                 with open(f"{pred_txt / f'Task1_{classname}'}.txt", "a", encoding="utf-8") as f:
                     f.writelines(f"{image_id} {score} {p[0]} {p[1]} {p[2]} {p[3]} {p[4]} {p[5]} {p[6]} {p[7]}\n")
-            # Save merged results, this could result slightly lower map than using official merging script,
-            # because of the probiou calculation.
-            pred_merged_txt = self.save_dir / "predictions_merged_txt"  # predictions
+
+
+            pred_merged_txt = self.save_dir / "predictions_merged_txt"
             pred_merged_txt.mkdir(parents=True, exist_ok=True)
             merged_results = defaultdict(list)
             LOGGER.info(f"Saving merged predictions with DOTA format to {pred_merged_txt}...")
@@ -282,18 +282,18 @@ class OBBValidator(DetectionValidator):
             for image_id, bbox in merged_results.items():
                 bbox = torch.tensor(bbox)
                 max_wh = torch.max(bbox[:, :2]).item() * 2
-                c = bbox[:, 6:7] * max_wh  # classes
-                scores = bbox[:, 5]  # scores
+                c = bbox[:, 6:7] * max_wh
+                scores = bbox[:, 5]
                 b = bbox[:, :5].clone()
                 b[:, :2] += c
-                # 0.3 could get results close to the ones from official merging script, even slightly better.
+
                 i = TorchNMS.fast_nms(b, scores, 0.3, iou_func=batch_probiou)
                 bbox = bbox[i]
 
                 b = ops.xywhr2xyxyxyxy(bbox[:, :5]).view(-1, 8)
                 for x in torch.cat([b, bbox[:, 5:7]], dim=-1).tolist():
                     classname = self.names[int(x[-1])].replace(" ", "-")
-                    p = [round(i, 3) for i in x[:-2]]  # poly
+                    p = [round(i, 3) for i in x[:-2]]
                     score = round(x[-2], 3)
 
                     with open(f"{pred_merged_txt / f'Task1_{classname}'}.txt", "a", encoding="utf-8") as f:

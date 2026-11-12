@@ -112,7 +112,7 @@ def main():
                 end.record()
                 end.synchronize()
                 forward.append(start.elapsed_time(end))
-                # A separate pass measures synchronized wall time, not a subtraction of timers.
+
                 torch.cuda.synchronize(predictor.device)
                 t0 = time.perf_counter()
                 validator.postprocess(deployment(x))

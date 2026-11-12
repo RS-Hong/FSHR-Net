@@ -25,7 +25,7 @@ from .sam3.vl_combiner import SAM3VLBackbone
 
 def _create_vision_backbone(compile_mode=None, enable_inst_interactivity=True) -> Sam3DualViTDetNeck:
     """Create SAM3 visual backbone with ViT and neck."""
-    # Position encoding
+
     position_encoding = PositionEmbeddingSine(
         num_pos_feats=256,
         normalize=True,
@@ -33,7 +33,7 @@ def _create_vision_backbone(compile_mode=None, enable_inst_interactivity=True) -
         temperature=10000,
     )
 
-    # ViT backbone
+
     vit_backbone = ViT(
         img_size=1008,
         pretrain_img_size=336,
@@ -150,11 +150,11 @@ def build_sam3_image_model(checkpoint_path: str, enable_segmentation: bool = Tru
 
         check_requirements("git+https://github.com/ultralytics/CLIP.git")
         import clip
-    # Create visual components
+
     compile_mode = "default" if compile else None
     vision_encoder = _create_vision_backbone(compile_mode=compile_mode, enable_inst_interactivity=True)
 
-    # Create text components
+
     text_encoder = VETextEncoder(
         tokenizer=clip.simple_tokenizer.SimpleTokenizer(),
         d_model=256,
@@ -163,13 +163,13 @@ def build_sam3_image_model(checkpoint_path: str, enable_segmentation: bool = Tru
         layers=24,
     )
 
-    # Create visual-language backbone
+
     backbone = SAM3VLBackbone(visual=vision_encoder, text=text_encoder, scalp=1)
 
-    # Create transformer components
+
     transformer = _create_sam3_transformer()
 
-    # Create dot product scoring
+
     dot_prod_scoring = DotProductScoring(
         d_model=256,
         d_proj=256,
@@ -183,7 +183,7 @@ def build_sam3_image_model(checkpoint_path: str, enable_segmentation: bool = Tru
         ),
     )
 
-    # Create segmentation head if enabled
+
     segmentation_head = (
         UniversalSegmentationHead(
             hidden_dim=256,
@@ -208,7 +208,7 @@ def build_sam3_image_model(checkpoint_path: str, enable_segmentation: bool = Tru
         else None
     )
 
-    # Create geometry encoder
+
     input_geometry_encoder = SequenceGeometryEncoder(
         pos_enc=PositionEmbeddingSine(
             num_pos_feats=256,
@@ -236,7 +236,7 @@ def build_sam3_image_model(checkpoint_path: str, enable_segmentation: bool = Tru
         add_post_encode_proj=True,
     )
 
-    # Create the SAM3SemanticModel model
+
     model = SAM3SemanticModel(
         backbone=backbone,
         transformer=transformer,
@@ -249,7 +249,7 @@ def build_sam3_image_model(checkpoint_path: str, enable_segmentation: bool = Tru
         multimask_output=True,
     )
 
-    # Load checkpoint
+
     model = _load_checkpoint(model, checkpoint_path)
     model.eval()
     return model
@@ -261,7 +261,7 @@ def build_interactive_sam3(checkpoint_path: str, compile=None, with_backbone=Tru
     Returns:
         Sam3TrackerPredictor: Wrapped SAM3 Tracker module
     """
-    # Create model components
+
     memory_encoder = MemoryEncoder(out_dim=64, interpol_size=[1152, 1152])
     memory_attention = MemoryAttention(
         batch_first=True,
@@ -335,10 +335,10 @@ def build_interactive_sam3(checkpoint_path: str, compile=None, with_backbone=Tru
         ),
     )
 
-    # Load checkpoint if provided
+
     model = _load_checkpoint(model, checkpoint_path, interactive=True)
 
-    # Setup device and mode
+
     model.eval()
     return model
 

@@ -41,8 +41,8 @@ class WorkingDirectory(contextlib.ContextDecorator):
 
     def __init__(self, new_dir: str | Path):
         """Initialize the WorkingDirectory context manager with the target directory."""
-        self.dir = new_dir  # new dir
-        self.cwd = Path.cwd().resolve()  # current dir
+        self.dir = new_dir
+        self.cwd = Path.cwd().resolve()
 
     def __enter__(self):
         """Change the current working directory to the specified directory upon entering the context."""
@@ -71,16 +71,16 @@ def spaces_in_path(path: str | Path):
         ...     # Your code here
         ...     pass
     """
-    # If path has spaces, replace them with underscores
+
     if " " in str(path):
-        string = isinstance(path, str)  # input type
+        string = isinstance(path, str)
         path = Path(path)
 
-        # Create a temporary directory and construct the new path
+
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp_path = Path(tmp_dir) / path.name.replace(" ", "_")
 
-            # Copy file/directory
+
             if path.is_dir():
                 shutil.copytree(path, tmp_path)
             elif path.is_file():
@@ -88,18 +88,18 @@ def spaces_in_path(path: str | Path):
                 shutil.copy2(path, tmp_path)
 
             try:
-                # Yield the temporary path
+
                 yield str(tmp_path) if string else tmp_path
 
             finally:
-                # Copy file/directory back
+
                 if tmp_path.is_dir():
                     shutil.copytree(tmp_path, path, dirs_exist_ok=True)
                 elif tmp_path.is_file():
-                    shutil.copy2(tmp_path, path)  # Copy back the file
+                    shutil.copy2(tmp_path, path)
 
     else:
-        # If there are no spaces, just yield the original path
+
         yield path
 
 
@@ -133,27 +133,27 @@ def increment_path(path: str | Path, exist_ok: bool = False, sep: str = "", mkdi
         >>> print(new_path)
         runs/exp/results2.txt
     """
-    path = Path(path)  # os-agnostic
+    path = Path(path)
     if path.exists() and not exist_ok:
         path, suffix = (path.with_suffix(""), path.suffix) if path.is_file() else (path, "")
 
-        # Method 1
+
         for n in range(2, 9999):
-            p = f"{path}{sep}{n}{suffix}"  # increment path
+            p = f"{path}{sep}{n}{suffix}"
             if not os.path.exists(p):
                 break
         path = Path(p)
 
     if mkdir:
-        path.mkdir(parents=True, exist_ok=True)  # make directory
+        path.mkdir(parents=True, exist_ok=True)
 
     return path
 
 
 def file_age(path: str | Path = __file__) -> int:
     """Return days since the last modification of the specified file."""
-    dt = datetime.now() - datetime.fromtimestamp(Path(path).stat().st_mtime)  # delta
-    return dt.days  # + dt.seconds / 86400  # fractional days
+    dt = datetime.now() - datetime.fromtimestamp(Path(path).stat().st_mtime)
+    return dt.days
 
 
 def file_date(path: str | Path = __file__) -> str:
@@ -165,7 +165,7 @@ def file_date(path: str | Path = __file__) -> str:
 def file_size(path: str | Path) -> float:
     """Return the size of a file or directory in megabytes (MB)."""
     if isinstance(path, (str, Path)):
-        mb = 1 << 20  # bytes to MiB (1024 ** 2)
+        mb = 1 << 20
         path = Path(path)
         if path.is_file():
             return path.stat().st_size / mb
@@ -199,21 +199,21 @@ def update_models(model_names: tuple = ("yolo26n.pt",), source_dir: Path = Path(
     from ultralytics.utils import LOGGER
 
     target_dir = source_dir / "updated_models"
-    target_dir.mkdir(parents=True, exist_ok=True)  # Ensure target directory exists
+    target_dir.mkdir(parents=True, exist_ok=True)
 
     for model_name in model_names:
         model_path = source_dir / model_name
         LOGGER.info(f"Loading model from {model_path}")
 
-        # Load model
+
         model = YOLO(model_path)
         model.half()
-        if update_names:  # update model names from a dataset YAML
+        if update_names:
             model.model.names = default_class_names("coco8.yaml")
 
-        # Define new save path
+
         save_path = target_dir / model_name
 
-        # Save model using model.save()
+
         LOGGER.info(f"Re-saving {model_name} model to {save_path}")
         model.save(save_path)

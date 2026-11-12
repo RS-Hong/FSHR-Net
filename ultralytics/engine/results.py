@@ -254,8 +254,8 @@ class Results(SimpleClass, DataExportMixin):
         """
         self.orig_img = orig_img
         self.orig_shape = orig_img.shape[:2]
-        self.boxes = Boxes(boxes, self.orig_shape) if boxes is not None else None  # native size boxes
-        self.masks = Masks(masks, self.orig_shape) if masks is not None else None  # native size or imgsz masks
+        self.boxes = Boxes(boxes, self.orig_shape) if boxes is not None else None
+        self.masks = Masks(masks, self.orig_shape) if masks is not None else None
         self.probs = Probs(probs) if probs is not None else None
         self.keypoints = Keypoints(keypoints, self.orig_shape) if keypoints is not None else None
         self.obb = OBB(obb, self.orig_shape) if obb is not None else None
@@ -505,11 +505,11 @@ class Results(SimpleClass, DataExportMixin):
             line_width,
             font_size,
             font,
-            pil or (pred_probs is not None and show_probs),  # Classify tasks default to pil=True
+            pil or (pred_probs is not None and show_probs),
             example=names,
         )
 
-        # Plot Segment results
+
         if pred_masks and show_masks:
             if im_gpu is None:
                 img = LetterBox(pred_masks.shape[1:])(image=annotator.result())
@@ -529,7 +529,7 @@ class Results(SimpleClass, DataExportMixin):
             )
             annotator.masks(pred_masks.data, colors=[colors(x, True) for x in idx], im_gpu=im_gpu)
 
-        # Plot Detect results
+
         if pred_boxes is not None and show_boxes:
             for i, d in enumerate(reversed(pred_boxes)):
                 c, d_conf, id = int(d.cls), float(d.conf) if conf else None, int(d.id.item()) if d.is_track else None
@@ -551,13 +551,13 @@ class Results(SimpleClass, DataExportMixin):
                     ),
                 )
 
-        # Plot Classify results
+
         if pred_probs is not None and show_probs:
             text = "\n".join(f"{names[j] if names else j} {pred_probs.data[j]:.2f}" for j in pred_probs.top5)
             x = round(self.orig_shape[0] * 0.03)
-            annotator.text([x, x], text, txt_color=txt_color, box_color=(64, 64, 64, 128))  # RGBA box
+            annotator.text([x, x], text, txt_color=txt_color, box_color=(64, 64, 64, 128))
 
-        # Plot Pose results
+
         if self.keypoints is not None:
             for i, k in enumerate(reversed(self.keypoints.data)):
                 annotator.kpts(
@@ -568,11 +568,11 @@ class Results(SimpleClass, DataExportMixin):
                     kpt_color=colors(i, True) if color_mode == "instance" else None,
                 )
 
-        # Show results
+
         if show:
             annotator.show(self.path)
 
-        # Save results
+
         if save:
             annotator.save(filename or f"results_{Path(self.path).name}")
 
@@ -688,15 +688,15 @@ class Results(SimpleClass, DataExportMixin):
         kpts = self.keypoints
         texts = []
         if probs is not None:
-            # Classify
+
             [texts.append(f"{probs.data[j]:.2f} {self.names[j]}") for j in probs.top5]
         elif boxes:
-            # Detect/segment/pose
+
             for j, d in enumerate(boxes):
                 c, conf, id = int(d.cls), float(d.conf), int(d.id.item()) if d.is_track else None
                 line = (c, *(d.xyxyxyxyn.view(-1) if is_obb else d.xywhn.view(-1)))
                 if masks:
-                    seg = masks[j].xyn[0].copy().reshape(-1)  # reversed mask.xyn, (n,2) to (n*2)
+                    seg = masks[j].xyn[0].copy().reshape(-1)
                     line = (c, *seg)
                 if kpts is not None:
                     kpt = torch.cat((kpts[j].xyn, kpts[j].conf[..., None]), 2) if kpts[j].has_visible else kpts[j].xyn
@@ -705,7 +705,7 @@ class Results(SimpleClass, DataExportMixin):
                 texts.append(("%g " * len(line)).rstrip() % line)
 
         if texts:
-            Path(txt_file).parent.mkdir(parents=True, exist_ok=True)  # make directory
+            Path(txt_file).parent.mkdir(parents=True, exist_ok=True)
             with open(txt_file, "a", encoding="utf-8") as f:
                 f.writelines(text + "\n" for text in texts)
 
@@ -769,10 +769,10 @@ class Results(SimpleClass, DataExportMixin):
             >>>     summary = result.summary()
             >>>     print(summary)
         """
-        # Create list of detection dictionaries
+
         results = []
         if self.probs is not None:
-            # Return top 5 classification results
+
             for class_id, conf in zip(self.probs.top5, self.probs.top5conf.tolist()):
                 class_id = int(class_id)
                 results.append(
@@ -787,7 +787,7 @@ class Results(SimpleClass, DataExportMixin):
         is_obb = self.obb is not None
         data = self.obb if is_obb else self.boxes
         h, w = self.orig_shape if normalize else (1, 1)
-        for i, row in enumerate(data):  # xyxy, track_id if tracking, conf, class_id
+        for i, row in enumerate(data):
             class_id, conf = int(row.cls), round(row.conf.item(), decimals)
             box = (row.xyxyxyxy if is_obb else row.xyxy).squeeze().reshape(-1, 2).tolist()
             xy = {}
@@ -796,7 +796,7 @@ class Results(SimpleClass, DataExportMixin):
                 xy[f"y{j + 1}"] = round(b[1] / h, decimals)
             result = {"name": self.names[class_id], "class": class_id, "confidence": conf, "box": xy}
             if data.is_track:
-                result["track_id"] = int(row.id.item())  # track ID
+                result["track_id"] = int(row.id.item())
             if self.masks:
                 result["segments"] = {
                     "x": (self.masks.xy[i][:, 0] / w).round(decimals).tolist(),
@@ -870,7 +870,7 @@ class Boxes(BaseTensor):
         if boxes.ndim == 1:
             boxes = boxes[None, :]
         n = boxes.shape[-1]
-        assert n in {6, 7}, f"expected 6 or 7 values but got {n}"  # xyxy, track_id, conf, cls
+        assert n in {6, 7}, f"expected 6 or 7 values but got {n}"
         super().__init__(boxes, orig_shape)
         self.is_track = n == 7
         self.orig_shape = orig_shape
@@ -1283,7 +1283,7 @@ class Probs(BaseTensor):
             >>> print(probs.top5)
             [4, 3, 2, 1, 0]
         """
-        return (-self.data).argsort(0)[:5].tolist()  # this way works with both torch and numpy.
+        return (-self.data).argsort(0)[:5].tolist()
 
     @property
     @lru_cache(maxsize=1)
@@ -1376,7 +1376,7 @@ class OBB(BaseTensor):
         if boxes.ndim == 1:
             boxes = boxes[None, :]
         n = boxes.shape[-1]
-        assert n in {7, 8}, f"expected 7 or 8 values but got {n}"  # xywh, rotation, track_id, conf, cls
+        assert n in {7, 8}, f"expected 7 or 8 values but got {n}"
         super().__init__(boxes, orig_shape)
         self.is_track = n == 8
         self.orig_shape = orig_shape

@@ -13,19 +13,19 @@ from ultralytics.utils import LOGGER, RANK, SETTINGS, TESTS_RUNNING, ops
 from ultralytics.utils.metrics import ClassifyMetrics, DetMetrics, OBBMetrics, PoseMetrics, SegmentMetrics
 
 try:
-    assert not TESTS_RUNNING  # do not log pytest
-    assert SETTINGS["comet"] is True  # verify integration is enabled
+    assert not TESTS_RUNNING
+    assert SETTINGS["comet"] is True
     import comet_ml
 
-    assert hasattr(comet_ml, "__version__")  # verify package is not directory
+    assert hasattr(comet_ml, "__version__")
 
     import os
     from pathlib import Path
 
-    # Ensures certain logging functions only run for supported tasks
+
     COMET_SUPPORTED_TASKS = ["detect", "segment"]
 
-    # Names of plots created by Ultralytics that are logged to Comet
+
     CONFUSION_MATRIX_PLOT_NAMES = "confusion_matrix", "confusion_matrix_normalized"
     EVALUATION_PLOT_NAMES = "F1_curve", "P_curve", "R_curve", "PR_curve"
     LABEL_PLOT_NAMES = ["labels"]
@@ -98,8 +98,8 @@ def _resume_or_create_experiment(args: SimpleNamespace) -> None:
     if RANK not in {-1, 0}:
         return
 
-    # Set environment variable (if not set by the user) to configure the Comet experiment's online mode under the hood.
-    # IF COMET_START_ONLINE is set by the user it will override COMET_MODE value.
+
+
     if os.getenv("COMET_START_ONLINE") is None:
         comet_mode = _get_comet_mode()
         os.environ["COMET_START_ONLINE"] = "1" if comet_mode != "offline" else "0"
@@ -164,13 +164,13 @@ def _scale_bounding_box_to_original_image_shape(
     """
     resized_image_height, resized_image_width = resized_image_shape
 
-    # Convert normalized xywh format predictions to xyxy in resized scale format
+
     box = ops.xywhn2xyxy(box, h=resized_image_height, w=resized_image_width)
-    # Scale box predictions from resized image scale back to original image scale
+
     box = ops.scale_boxes(resized_image_shape, box, original_image_shape, ratio_pad)
-    # Convert bounding box format from xyxy to xywh for Comet logging
+
     box = ops.xyxy2xywh(box)
-    # Adjust xy center to correspond top-left corner
+
     box[:2] -= box[2:] / 2
     box = box.tolist()
 
@@ -251,11 +251,11 @@ def _format_prediction_annotations(image_path, metadata, class_label_map=None, c
         LOGGER.debug(f"Comet Image: {image_path} has no bounding boxes predictions")
         return None
 
-    # apply the mapping that was used to map the predicted classes when the JSON was created
+
     if class_label_map and class_map:
         class_label_map = {class_map[k]: v for k, v in class_label_map.items()}
     try:
-        # import pycotools utilities to decompress annotations for various tasks, e.g. segmentation
+
         from faster_coco_eval.core.mask import decode
     except ImportError:
         decode = None
@@ -271,7 +271,7 @@ def _format_prediction_annotations(image_path, metadata, class_label_map=None, c
         annotation_data = {"boxes": [boxes], "label": cls_label, "score": score}
 
         if decode is not None:
-            # do segmentation processing only if we are able to decode it
+
             segments = prediction.get("segmentation", None)
             if segments is not None:
                 segments = _extract_segmentation_annotation(segments, decode)
@@ -597,12 +597,12 @@ def on_train_end(trainer) -> None:
     _log_confusion_matrix(experiment, trainer, curr_step, curr_epoch)
     _log_image_predictions(experiment, trainer.validator, curr_step)
     _log_image_batches(experiment, trainer, curr_step)
-    # log results table
+
     table_path = trainer.save_dir / RESULTS_TABLE_NAME
     if table_path.exists():
         _log_table(experiment, table_path)
 
-    # log arguments YAML
+
     args_path = trainer.save_dir / ARGS_YAML_NAME
     if args_path.exists():
         _log_asset(experiment, args_path)

@@ -28,17 +28,17 @@ class ResidualAttentionBlock(nn.Module):
     ):
         """Initialize residual attention block with configurable dimensions and normalization."""
         super().__init__()
-        # Attention
+
         self.attn = nn.MultiheadAttention(d_model, n_head, batch_first=True)
 
-        # LayerNorm, LayerScale
+
         self.ln_1 = norm_layer(d_model)
         self.ln_2 = norm_layer(d_model)
 
         self.ls_1 = LayerScale(d_model, ls_init_value) if ls_init_value is not None else nn.Identity()
         self.ls_2 = LayerScale(d_model, ls_init_value) if ls_init_value is not None else nn.Identity()
 
-        # MLP
+
         mlp_width = int(d_model * mlp_ratio)
         self.mlp = nn.Sequential(
             OrderedDict(
@@ -57,7 +57,7 @@ class ResidualAttentionBlock(nn.Module):
         k_x = k_x if k_x is not None else q_x
         v_x = v_x if v_x is not None else q_x
         if attn_mask is not None:
-            # Leave boolean masks as is
+
             if not attn_mask.dtype == torch.bool:
                 attn_mask = attn_mask.to(q_x.dtype)
 
@@ -134,7 +134,7 @@ def text_global_pool(
     elif pool_type == "last":
         pooled, tokens = x[:, -1], x[:, :-1]
     elif pool_type == "argmax":
-        # take features from the eot embedding (eot_token is the highest number in each sequence)
+
         assert text is not None
         pooled, tokens = x[torch.arange(x.shape[0]), text.argmax(dim=-1)], x
     else:
@@ -156,7 +156,7 @@ class TextTransformer(nn.Module):
         ls_init_value: float | None = None,
         output_dim: int = 512,
         no_causal_mask: bool = False,
-        pool_type: str = "none",  # no pooling
+        pool_type: str = "none",
         proj_bias: bool = False,
         act_layer: Callable = nn.GELU,
         norm_layer: Callable = nn.LayerNorm,
@@ -201,17 +201,17 @@ class TextTransformer(nn.Module):
 
     def build_causal_mask(self) -> torch.Tensor:
         """Create a causal attention mask to prevent attention to future tokens."""
-        # lazily create causal attention mask, with full attention between the tokens
-        # pytorch uses additive attention mask; fill with -inf
+
+
         mask = torch.empty(self.num_pos, self.num_pos)
         mask.fill_(float("-inf"))
-        mask.triu_(1)  # zero out the lower diagonal
+        mask.triu_(1)
         return mask
 
     def forward(self, text: torch.Tensor) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
         """Forward pass through the text transformer, returning pooled output and optionally token embeddings."""
         seq_len = text.shape[1]
-        x = self.token_embedding(text)  # [batch_size, n_ctx, d_model]
+        x = self.token_embedding(text)
 
         attn_mask = self.attn_mask
         if attn_mask is not None:
@@ -260,7 +260,7 @@ class VETextEncoder(nn.Module):
             width=width,
             heads=heads,
             layers=layers,
-            # we want the tokens, not just the pooled output
+
             output_tokens=True,
             use_ln_post=use_ln_post,
             compile_mode=compile_mode,
@@ -273,33 +273,33 @@ class VETextEncoder(nn.Module):
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Encode text input, either raw strings or pre-encoded tensors, and resize to match decoder dimensions."""
         if isinstance(text[0], str):
-            # no use case for this
+
             assert input_boxes is None or len(input_boxes) == 0, "not supported"
 
-            # Encode the text
+
             tokenized = self.tokenizer(text, context_length=self.context_length).to(
                 self.resizer.weight.device
-            )  # [b, seq_len]
+            )
             text_attention_mask = (tokenized != 0).bool()
 
-            # manually embed the tokens
-            inputs_embeds = self.encoder.token_embedding(tokenized)  # [b, seq_len, d=1024]
-            _, text_memory = self.encoder(tokenized)  # [b, seq_len, d=1024]
+
+            inputs_embeds = self.encoder.token_embedding(tokenized)
+            _, text_memory = self.encoder(tokenized)
 
             assert text_memory.shape[1] == inputs_embeds.shape[1]
-            # Invert attention mask because its the opposite in pytorch transformer
+
             text_attention_mask = text_attention_mask.ne(1)
-            # Transpose memory because pytorch's attention expects sequence first
+
             text_memory = text_memory.transpose(0, 1)
-            # Resize the encoder hidden states to be of the same d_model as the decoder
+
             text_memory_resized = self.resizer(text_memory)
         else:
-            # The text is already encoded, use as is.
+
             text_attention_mask, text_memory_resized, tokenized = text
             inputs_embeds = tokenized["inputs_embeds"]
             assert input_boxes is None or len(input_boxes) == 0, "Can't replace boxes in text if it's already encoded"
 
-        # Note that the input_embeds are returned in pytorch's convention (sequence first)
+
         return (
             text_attention_mask,
             text_memory_resized,

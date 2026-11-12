@@ -23,14 +23,14 @@ from typing import Literal
 
 from ultralytics.utils.tqdm import TQDM
 
-# Constants
+
 FILE = Path(__file__).resolve()
 REPO_ROOT = FILE.parents[1]
 PACKAGE_DIR = REPO_ROOT / "ultralytics"
 REFERENCE_DIR = PACKAGE_DIR.parent / "docs/en/reference"
 GITHUB_REPO = "ultralytics/ultralytics"
 SIGNATURE_LINE_LENGTH = 120
-# Use Font Awesome brand GitHub icon (CSS already loaded via mkdocs.yml and HTML head)
+
 GITHUB_ICON = '<i class="fa-brands fa-github" aria-hidden="true" style="margin-right:6px;"></i>'
 
 MKDOCS_YAML = PACKAGE_DIR.parent / "mkdocs.yml"
@@ -115,9 +115,9 @@ class DocumentedModule:
     functions: list[DocItem]
 
 
-# --------------------------------------------------------------------------------------------- #
-# Placeholder (legacy) generation for mkdocstrings-style stubs
-# --------------------------------------------------------------------------------------------- #
+
+
+
 
 
 def extract_classes_and_functions(filepath: Path) -> tuple[list[str], list[str]]:
@@ -412,11 +412,11 @@ def _normalize_text(text: str) -> str:
     """Normalize text while preserving Markdown structures like tables, admonitions, and code blocks."""
     if not text:
         return ""
-    # Check if text contains Markdown structures that need line preservation
+
     if any(marker in text for marker in ("|", "!!!", "```", "\n#", "\n- ", "\n* ", "\n1. ", "\n    ")):
-        # Preserve Markdown formatting - just strip trailing whitespace from lines
+
         return "\n".join(line.rstrip() for line in text.splitlines()).strip()
-    # Simple text - collapse single newlines within paragraphs
+
     paragraphs: list[str] = []
     current: list[str] = []
     for line in text.splitlines():
@@ -454,7 +454,7 @@ def parse_google_docstring(docstring: str | None) -> ParsedDocstring:
         if key and stripped.endswith(":"):
             current = key
             continue
-        if current != "methods":  # ignore "Methods:" sections; methods are rendered from AST
+        if current != "methods":
             sections[current].append(line)
 
     description = "\n".join(sections.pop("description", [])).strip("\n")
@@ -476,7 +476,7 @@ def parse_google_docstring(docstring: str | None) -> ParsedDocstring:
 def merge_docstrings(base: ParsedDocstring, extra: ParsedDocstring, ignore_summary: bool = True) -> ParsedDocstring:
     """Merge init docstring content into a class docstring."""
 
-    # Keep existing class docs; append init docs only when they introduce new entries (class takes priority).
+
     def _merge_unique(base_items, extra_items, key):
         seen = {key(item) for item in base_items}
         base_items.extend(item for item in extra_items if key(item) not in seen)
@@ -510,7 +510,7 @@ def _collect_source_block(src: str, node: ast.AST, end_line: int | None = None) 
     if not hasattr(node, "lineno") or not hasattr(node, "end_lineno"):
         return ""
     lines = src.splitlines()
-    # Include decorators by starting from the first decorator line if present
+
     decorator_lines = [getattr(d, "lineno", node.lineno) for d in getattr(node, "decorator_list", [])]
     start_line = min([*decorator_lines, node.lineno]) if decorator_lines else node.lineno
     start = max(start_line - 1, 0)
@@ -818,7 +818,7 @@ def render_docstring(
 
     if extra_sections:
         sections.update({k: v for k, v in extra_sections.items() if v})
-    # Ensure section order contains unique entries to avoid duplicate renders (e.g., classes injecting "examples")
+
     order = list(dict.fromkeys(section_order or DEFAULT_SECTION_ORDER))
 
     ordered_sections: list[str] = []
@@ -890,7 +890,7 @@ def render_summary_tabs(module: DocumentedModule) -> str:
         label_badge = f'<span class="doc-kind doc-kind-{badge_class}">{label}</span>'
         lines.append(f'    === "{label_badge}"\n')
         lines.append("\n".join(f"        {line}" for line in bullets))
-        lines.append("")  # Blank line after each tab block
+        lines.append("")
     return "\n".join(lines).rstrip() + "\n\n"
 
 
@@ -898,7 +898,7 @@ def render_item(item: DocItem, module_url: str, module_path: str, level: int = 2
     """Render a class, function, or method to Markdown."""
     anchor = item_anchor(item)
     title_prefix = item.kind.capitalize()
-    anchor_id = anchor.replace("_", r"\_")  # escape underscores so attr_list keeps them in the id
+    anchor_id = anchor.replace("_", r"\_")
     heading = f"{'#' * level} {title_prefix} `{display_qualname(item)}` {{#{anchor_id}}}"
     signature_block = f"```python\n{item.signature}\n```\n"
 
@@ -997,7 +997,7 @@ def create_markdown(module: DocumentedModule) -> Path:
 
     module_path_fs = module.module_path.replace(".", "/")
     url = f"https://github.com/{GITHUB_REPO}/blob/main/{module_path_fs}.py"
-    pretty = url.replace("__init__.py", "\\_\\_init\\_\\_.py")  # Properly display __init__.py filenames
+    pretty = url.replace("__init__.py", "\\_\\_init\\_\\_.py")
 
     title_content = f"# Reference for `{module_path_fs}.py`\n\n" + contribution_admonition(
         pretty, url, kind="success", title="Improvements"
@@ -1030,7 +1030,7 @@ def create_nav_menu_yaml(nav_items: list[str]) -> str:
         item = Path(item_str)
         parts = item.parts
         current_level = nav_tree["reference"]
-        for part in parts[2:-1]:  # Skip docs/reference and filename
+        for part in parts[2:-1]:
             current_level = current_level[part]
         current_level[parts[-1].replace(".md", "")] = item
 
@@ -1053,10 +1053,10 @@ def create_nav_menu_yaml(nav_items: list[str]) -> str:
 def extract_document_paths(yaml_section: str) -> list[str]:
     """Extract document paths from a YAML section, ignoring formatting and structure."""
     paths = []
-    # Match all paths that appear after a colon in the YAML
+
     path_matches = re.findall(r":\s*([^\s][^:\n]*?)(?:\n|$)", yaml_section)
     for path in path_matches:
-        # Clean up the path
+
         path = path.strip()
         if path and not path.startswith("-") and not path.endswith(":"):
             paths.append(path)
@@ -1067,44 +1067,44 @@ def update_mkdocs_file(reference_yaml: str) -> None:
     """Update the mkdocs.yaml file with the new reference section only if changes in document paths are detected."""
     mkdocs_content = MKDOCS_YAML.read_text()
 
-    # Find the top-level Reference section
+
     ref_pattern = r"(\n  - Reference:[\s\S]*?)(?=\n  - \w|$)"
     ref_match = re.search(ref_pattern, mkdocs_content)
 
-    # Build new section with proper indentation
+
     new_section_lines = ["\n  - Reference:"]
     new_section_lines.extend(
         f"    {line}"
         for line in reference_yaml.splitlines()
-        if line.strip() != "- reference:"  # Skip redundant header
+        if line.strip() != "- reference:"
     )
     new_ref_section = "\n".join(new_section_lines) + "\n"
 
     if ref_match:
-        # We found an existing Reference section
+
         ref_section = ref_match.group(1)
         print(f"Found existing top-level Reference section ({len(ref_section)} chars)")
 
-        # Compare only document paths
+
         existing_paths = extract_document_paths(ref_section)
         new_paths = extract_document_paths(new_ref_section)
 
-        # Check if the document paths are the same (ignoring structure or formatting differences)
+
         if len(existing_paths) == len(new_paths) and set(existing_paths) == set(new_paths):
             print(f"No changes detected in document paths ({len(existing_paths)} items). Skipping update.")
             return
 
         print(f"Changes detected: {len(new_paths)} document paths vs {len(existing_paths)} existing")
 
-        # Update content
+
         new_content = mkdocs_content.replace(ref_section, new_ref_section)
         MKDOCS_YAML.write_text(new_content)
         subprocess.run(["npx", "prettier", "--write", str(MKDOCS_YAML)], check=False, cwd=PACKAGE_DIR.parent)
         print(f"Updated Reference section in {MKDOCS_YAML}")
     elif help_match := re.search(r"(\n  - Help:)", mkdocs_content):
-        # No existing Reference section, we need to add it
+
         help_section = help_match.group(1)
-        # Insert before Help section
+
         new_content = mkdocs_content.replace(help_section, f"{new_ref_section}{help_section}")
         MKDOCS_YAML.write_text(new_content)
         print(f"Added new Reference section before Help in {MKDOCS_YAML}")

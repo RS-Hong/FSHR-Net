@@ -54,8 +54,8 @@ def auto_annotate(
     )
 
     for result in det_results:
-        if class_ids := result.boxes.cls.int().tolist():  # Extract class IDs from detection results
-            boxes = result.boxes.xyxy  # Boxes object for bbox outputs
+        if class_ids := result.boxes.cls.int().tolist():
+            boxes = result.boxes.xyxy
             sam_results = sam_model(result.orig_img, bboxes=boxes, verbose=False, save=False, device=device)
             segments = sam_results[0].masks.xyn
 

@@ -56,28 +56,28 @@ class ConsoleLogger:
         if destination is not None and not self.is_api:
             self.destination = Path(destination)
 
-        # Batching configuration
+
         self.batch_size = max(1, batch_size)
         self.flush_interval = flush_interval
         self.on_flush = on_flush
 
-        # Console capture state
+
         self.original_stdout = sys.stdout
         self.original_stderr = sys.stderr
         self.active = False
-        self._log_handler = None  # Track handler for cleanup
+        self._log_handler = None
 
-        # Buffer for batching
+
         self.buffer = []
         self.buffer_lock = threading.Lock()
         self.flush_thread = None
         self.chunk_id = 0
 
-        # Deduplication state
+
         self.last_line = ""
         self.last_time = 0.0
-        self.last_progress_line = ""  # Track progress sequence key for deduplication
-        self.last_was_progress = False  # Track if last line was a progress bar
+        self.last_progress_line = ""
+        self.last_was_progress = False
 
     def start_capture(self):
         """Start capturing console output and redirect stdout/stderr.
@@ -92,14 +92,14 @@ class ConsoleLogger:
         sys.stdout = self._ConsoleCapture(self.original_stdout, self._queue_log)
         sys.stderr = self._ConsoleCapture(self.original_stderr, self._queue_log)
 
-        # Hook Ultralytics logger
+
         try:
             self._log_handler = self._LogHandler(self._queue_log)
             logging.getLogger("ultralytics").addHandler(self._log_handler)
         except Exception:
             pass
 
-        # Start background flush thread for batched mode
+
         if self.batch_size > 1:
             self.flush_thread = threading.Thread(target=self._flush_worker, daemon=True)
             self.flush_thread.start()
@@ -113,7 +113,7 @@ class ConsoleLogger:
         sys.stdout = self.original_stdout
         sys.stderr = self.original_stderr
 
-        # Remove logging handler to prevent memory leak
+
         if self._log_handler:
             try:
                 logging.getLogger("ultralytics").removeHandler(self._log_handler)
@@ -121,7 +121,7 @@ class ConsoleLogger:
                 pass
             self._log_handler = None
 
-        # Final flush
+
         self._flush_buffer()
 
     def _queue_log(self, text):
@@ -131,7 +131,7 @@ class ConsoleLogger:
 
         current_time = time.time()
 
-        # Handle carriage returns and process lines
+
         if "\r" in text:
             text = text.split("\r")[-1]
 
@@ -142,66 +142,66 @@ class ConsoleLogger:
         for line in lines:
             line = line.rstrip()
 
-            # Skip lines with only thin progress bars (partial progress)
-            if "─" in line:  # Has thin lines but no thick lines
+
+            if "─" in line:
                 continue
 
-            # Only show 100% completion lines for progress bars
+
             if " ━━" in line:
                 is_complete = "100%" in line
 
-                # Skip ALL non-complete progress lines
+
                 if not is_complete:
                     continue
 
-                # Extract sequence key to deduplicate multiple 100% lines for same sequence
+
                 parts = line.split()
                 seq_key = ""
                 if parts:
-                    # Check for epoch pattern (X/Y at start)
-                    if "/" in parts[0] and parts[0].replace("/", "").isdigit():
-                        seq_key = parts[0]  # e.g., "1/3"
-                    elif parts[0] == "Class" and len(parts) > 1:
-                        seq_key = f"{parts[0]}_{parts[1]}"  # e.g., "Class_train:" or "Class_val:"
-                    elif parts[0] in ("train:", "val:"):
-                        seq_key = parts[0]  # Phase identifier
 
-                # Skip if we already showed 100% for this sequence
+                    if "/" in parts[0] and parts[0].replace("/", "").isdigit():
+                        seq_key = parts[0]
+                    elif parts[0] == "Class" and len(parts) > 1:
+                        seq_key = f"{parts[0]}_{parts[1]}"
+                    elif parts[0] in ("train:", "val:"):
+                        seq_key = parts[0]
+
+
                 if seq_key and self.last_progress_line == f"{seq_key}:done":
                     continue
 
-                # Mark this sequence as done
+
                 if seq_key:
                     self.last_progress_line = f"{seq_key}:done"
 
                 self.last_was_progress = True
             else:
-                # Skip empty line after progress bar
+
                 if not line and self.last_was_progress:
                     self.last_was_progress = False
                     continue
                 self.last_was_progress = False
 
-            # General deduplication
+
             if line == self.last_line and current_time - self.last_time < 0.1:
                 continue
 
             self.last_line = line
             self.last_time = current_time
 
-            # Add timestamp if needed
+
             if not line.startswith("[20"):
                 timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 line = f"[{timestamp}] {line}"
 
-            # Add to buffer and check if flush needed
+
             should_flush = False
             with self.buffer_lock:
                 self.buffer.append(line)
                 if len(self.buffer) >= self.batch_size:
                     should_flush = True
 
-            # Flush outside lock to avoid deadlock
+
             if should_flush:
                 self._flush_buffer()
 
@@ -220,19 +220,19 @@ class ConsoleLogger:
             lines = self.buffer.copy()
             self.buffer.clear()
             self.chunk_id += 1
-            chunk_id = self.chunk_id  # Capture under lock to avoid race
+            chunk_id = self.chunk_id
 
         content = "\n".join(lines)
         line_count = len(lines)
 
-        # Call custom callback if provided
+
         if self.on_flush:
             try:
                 self.on_flush(content, line_count, chunk_id)
             except Exception:
-                pass  # Silently ignore callback errors to avoid flooding stderr
+                pass
 
-        # Write to destination (file or API)
+
         if self.destination is not None:
             self._write_destination(content)
 
@@ -316,14 +316,14 @@ class SystemLogger:
 
     def __init__(self):
         """Initialize the system logger."""
-        import psutil  # scoped as slow import
+        import psutil
 
         self.pynvml = None
         self.nvidia_initialized = self._init_nvidia()
         self.net_start = psutil.net_io_counters()
         self.disk_start = psutil.disk_io_counters()
 
-        # For rate calculation
+
         self._prev_net = self.net_start
         self._prev_disk = self.disk_start
         self._prev_time = time.time()
@@ -389,7 +389,7 @@ class SystemLogger:
             >>> logger.get_metrics()["cpu"]  # CPU percentage
             >>> logger.get_metrics(rates=True)["network"]["recv_mbs"]  # MB/s download rate
         """
-        import psutil  # scoped as slow import
+        import psutil
 
         net = psutil.net_io_counters()
         disk = psutil.disk_io_counters()
@@ -403,11 +403,11 @@ class SystemLogger:
             "gpus": {},
         }
 
-        # Calculate elapsed time since last call
-        elapsed = max(0.1, now - self._prev_time)  # Avoid division by zero
+
+        elapsed = max(0.1, now - self._prev_time)
 
         if rates:
-            # Calculate MB/s rates from delta since last call
+
             metrics["disk"] = {
                 "read_mbs": round(max(0, (disk.read_bytes - self._prev_disk.read_bytes) / (1 << 20) / elapsed), 3),
                 "write_mbs": round(max(0, (disk.write_bytes - self._prev_disk.write_bytes) / (1 << 20) / elapsed), 3),
@@ -418,7 +418,7 @@ class SystemLogger:
                 "sent_mbs": round(max(0, (net.bytes_sent - self._prev_net.bytes_sent) / (1 << 20) / elapsed), 3),
             }
         else:
-            # Cumulative MB since initialization (original behavior)
+
             metrics["disk"] = {
                 "read_mb": round((disk.read_bytes - self.disk_start.read_bytes) / (1 << 20), 3),
                 "write_mb": round((disk.write_bytes - self.disk_start.write_bytes) / (1 << 20), 3),
@@ -429,12 +429,12 @@ class SystemLogger:
                 "sent_mb": round((net.bytes_sent - self.net_start.bytes_sent) / (1 << 20), 3),
             }
 
-        # Always update previous values for accurate rate calculation on next call
+
         self._prev_net = net
         self._prev_disk = disk
         self._prev_time = now
 
-        # Add GPU metrics (NVIDIA only)
+
         if self.nvidia_initialized:
             metrics["gpus"].update(self._get_nvidia_metrics())
 
@@ -475,10 +475,10 @@ if __name__ == "__main__":
         while True:
             metrics = logger.get_metrics()
 
-            # Clear screen (works on most terminals)
+
             print("\033[H\033[J", end="")
 
-            # Display system metrics
+
             print(f"CPU: {metrics['cpu']:5.1f}%")
             print(f"RAM: {metrics['ram']:5.1f}%")
             print(f"Disk Read: {metrics['disk']['read_mb']:8.1f} MB")
@@ -487,7 +487,7 @@ if __name__ == "__main__":
             print(f"Net Recv: {metrics['network']['recv_mb']:9.1f} MB")
             print(f"Net Sent: {metrics['network']['sent_mb']:9.1f} MB")
 
-            # Display GPU metrics if available
+
             if metrics["gpus"]:
                 print("\nGPU Metrics:")
                 for gpu_id, gpu_data in metrics["gpus"].items():

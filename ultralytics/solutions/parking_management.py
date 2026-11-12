@@ -50,10 +50,10 @@ class ParkingPtsSelection:
 
     def __init__(self) -> None:
         """Initialize the ParkingPtsSelection class, setting up UI and properties for parking zone point selection."""
-        try:  # Check if tkinter is installed
+        try:
             import tkinter as tk
             from tkinter import filedialog, messagebox
-        except ImportError:  # Display error with recommendations
+        except ImportError:
             import platform
 
             install_cmd = {
@@ -70,23 +70,23 @@ class ParkingPtsSelection:
             return
 
         self.tk, self.filedialog, self.messagebox = tk, filedialog, messagebox
-        self.master = self.tk.Tk()  # Reference to the main application window
+        self.master = self.tk.Tk()
         self.master.title("Ultralytics Parking Zones Points Selector")
         self.master.resizable(False, False)
 
-        self.canvas = self.tk.Canvas(self.master, bg="white")  # Canvas widget for displaying images
+        self.canvas = self.tk.Canvas(self.master, bg="white")
         self.canvas.pack(side=self.tk.BOTTOM)
 
-        self.image = None  # Variable to store the loaded image
-        self.canvas_image = None  # Reference to the image displayed on the canvas
-        self.canvas_max_width = None  # Maximum allowed width for the canvas
-        self.canvas_max_height = None  # Maximum allowed height for the canvas
-        self.rg_data = None  # Data for region annotation management
-        self.current_box = None  # Stores the currently selected bounding box
-        self.imgh = None  # Height of the current image
-        self.imgw = None  # Width of the current image
+        self.image = None
+        self.canvas_image = None
+        self.canvas_max_width = None
+        self.canvas_max_height = None
+        self.rg_data = None
+        self.current_box = None
+        self.imgh = None
+        self.imgw = None
 
-        # Button frame with buttons
+
         button_frame = self.tk.Frame(self.master)
         button_frame.pack(side=self.tk.TOP)
 
@@ -109,7 +109,7 @@ class ParkingPtsSelection:
 
     def upload_image(self) -> None:
         """Upload and display an image on the canvas, resizing it to fit within specified dimensions."""
-        from PIL import Image, ImageTk  # Scoped import because ImageTk requires tkinter package
+        from PIL import Image, ImageTk
 
         file = self.filedialog.askopenfilename(filetypes=[("Image Files", "*.png *.jpg *.jpeg")])
         if not file:
@@ -167,7 +167,7 @@ class ParkingPtsSelection:
         scale_w, scale_h = self.imgw / self.canvas.winfo_width(), self.imgh / self.canvas.winfo_height()
         data = [{"points": [(int(x * scale_w), int(y * scale_h)) for x, y in box]} for box in self.rg_data]
 
-        from io import StringIO  # Function level import, as it's only required to store coordinates
+        from io import StringIO
 
         write_buffer = StringIO()
         json.dump(data, write_buffer, indent=4)
@@ -204,7 +204,7 @@ class ParkingManagement(BaseSolution):
         """Initialize the parking management system with a YOLO model and visualization settings."""
         super().__init__(**kwargs)
 
-        self.json_file = self.CFG["json_file"]  # Load parking regions JSON data
+        self.json_file = self.CFG["json_file"]
         if not self.json_file:
             LOGGER.warning("ParkingManagement requires `json_file` with parking region coordinates.")
             raise ValueError("❌ JSON file path cannot be empty.")
@@ -212,11 +212,11 @@ class ParkingManagement(BaseSolution):
         with open(self.json_file, encoding="utf-8") as f:
             self.json = json.load(f)
 
-        self.pr_info = {"Occupancy": 0, "Available": 0}  # Dictionary for parking information
+        self.pr_info = {"Occupancy": 0, "Available": 0}
 
-        self.arc = (0, 0, 255)  # Available region color
-        self.occ = (0, 255, 0)  # Occupied region color
-        self.dc = (255, 0, 189)  # Centroid color for each box
+        self.arc = (0, 0, 255)
+        self.occ = (0, 255, 0)
+        self.dc = (255, 0, 189)
 
     def process(self, im0: np.ndarray) -> SolutionResults:
         """Process the input image for parking lot management and visualization.
@@ -238,19 +238,19 @@ class ParkingManagement(BaseSolution):
             >>> image = cv2.imread("parking_lot.jpg")
             >>> results = parking_manager.process(image)
         """
-        self.extract_tracks(im0)  # Extract tracks from im0
+        self.extract_tracks(im0)
         available_slots, occupied_slots = len(self.json), 0
-        annotator = SolutionAnnotator(im0, self.line_width)  # Initialize annotator
+        annotator = SolutionAnnotator(im0, self.line_width)
 
         for region in self.json:
-            # Convert points to a NumPy array with the correct dtype and reshape properly
+
             region_polygon = np.array(region["points"], dtype=np.int32).reshape((-1, 1, 2))
             region_occupied = False
             for box, cls in zip(self.boxes, self.clss):
                 xc, yc = int((box[0] + box[2]) / 2), int((box[1] + box[3]) / 2)
                 inside_distance = cv2.pointPolygonTest(region_polygon, (xc, yc), False)
                 if inside_distance >= 0:
-                    # cv2.circle(im0, (xc, yc), radius=self.line_width * 4, color=self.dc, thickness=-1)
+
                     annotator.display_objects_labels(
                         im0, self.model.names[int(cls)], (104, 31, 17), (255, 255, 255), xc, yc, 10
                     )
@@ -259,7 +259,7 @@ class ParkingManagement(BaseSolution):
             if region_occupied:
                 occupied_slots += 1
                 available_slots -= 1
-            # Plot regions
+
             cv2.polylines(
                 im0, [region_polygon], isClosed=True, color=self.occ if region_occupied else self.arc, thickness=2
             )
@@ -269,9 +269,9 @@ class ParkingManagement(BaseSolution):
         annotator.display_analytics(im0, self.pr_info, (104, 31, 17), (255, 255, 255), 10)
 
         plot_im = annotator.result()
-        self.display_output(plot_im)  # Display output with base class function
+        self.display_output(plot_im)
 
-        # Return SolutionResults
+
         return SolutionResults(
             plot_im=plot_im,
             filled_slots=self.pr_info["Occupancy"],

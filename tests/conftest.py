@@ -17,7 +17,7 @@ def pytest_collection_modifyitems(config, items):
         items (list): The list of collected pytest item objects to be modified based on the presence of --slow option.
     """
     if not config.getoption("--slow"):
-        # Remove the item entirely from the list of test items if it's marked as 'slow'
+
         items[:] = [item for item in items if "slow" not in item.keywords]
 
 
@@ -48,12 +48,12 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
     """
     from ultralytics.utils import WEIGHTS_DIR
 
-    # Remove files
+
     models = [path for x in {"*.onnx", "*.torchscript"} for path in WEIGHTS_DIR.rglob(x)]
     for file in ["decelera_portrait_min.mov", "bus.jpg", "yolo26n.onnx", "yolo26n.torchscript", *models]:
         Path(file).unlink(missing_ok=True)
 
-    # Remove directories
+
     models = [path for x in {"*.mlpackage", "*_openvino_model"} for path in WEIGHTS_DIR.rglob(x)]
     for directory in [WEIGHTS_DIR / "path with spaces", *models]:
         shutil.rmtree(directory, ignore_errors=True)

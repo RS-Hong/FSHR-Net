@@ -36,22 +36,22 @@ def bbox_ioa(box1: np.ndarray, box2: np.ndarray, iou: bool = False, eps: float =
     Returns:
         (np.ndarray): A numpy array of shape (N, M) representing the intersection over box2 area.
     """
-    # Get the coordinates of bounding boxes
+
     b1_x1, b1_y1, b1_x2, b1_y2 = box1.T
     b2_x1, b2_y1, b2_x2, b2_y2 = box2.T
 
-    # Intersection area
+
     inter_area = (np.minimum(b1_x2[:, None], b2_x2) - np.maximum(b1_x1[:, None], b2_x1)).clip(0) * (
         np.minimum(b1_y2[:, None], b2_y2) - np.maximum(b1_y1[:, None], b2_y1)
     ).clip(0)
 
-    # Box2 area
+
     area = (b2_x2 - b2_x1) * (b2_y2 - b2_y1)
     if iou:
         box1_area = (b1_x2 - b1_x1) * (b1_y2 - b1_y1)
         area = area + box1_area[:, None] - inter_area
 
-    # Intersection over box2 area
+
     return inter_area / (area + eps)
 
 
@@ -69,12 +69,12 @@ def box_iou(box1: torch.Tensor, box2: torch.Tensor, eps: float = 1e-7) -> torch.
     References:
         https://github.com/pytorch/vision/blob/main/torchvision/ops/boxes.py
     """
-    # NOTE: Need .float() to get accurate iou values
-    # inter(N,M) = (rb(N,M,2) - lt(N,M,2)).clamp(0).prod(2)
+
+
     (a1, a2), (b1, b2) = box1.float().unsqueeze(1).chunk(2, 2), box2.float().unsqueeze(0).chunk(2, 2)
     inter = (torch.min(a2, b2) - torch.max(a1, b1)).clamp_(0).prod(2)
 
-    # IoU = inter / (area1 + area2 - inter)
+
     return inter / ((a2 - a1).prod(2) + (b2 - b1).prod(2) - inter + eps)
 
 
@@ -106,45 +106,45 @@ def bbox_iou(
     Returns:
         (torch.Tensor): IoU, GIoU, DIoU, or CIoU values depending on the specified flags.
     """
-    # Get the coordinates of bounding boxes
-    if xywh:  # transform from xywh to xyxy
+
+    if xywh:
         (x1, y1, w1, h1), (x2, y2, w2, h2) = box1.chunk(4, -1), box2.chunk(4, -1)
         w1_, h1_, w2_, h2_ = w1 / 2, h1 / 2, w2 / 2, h2 / 2
         b1_x1, b1_x2, b1_y1, b1_y2 = x1 - w1_, x1 + w1_, y1 - h1_, y1 + h1_
         b2_x1, b2_x2, b2_y1, b2_y2 = x2 - w2_, x2 + w2_, y2 - h2_, y2 + h2_
-    else:  # x1, y1, x2, y2 = box1
+    else:
         b1_x1, b1_y1, b1_x2, b1_y2 = box1.chunk(4, -1)
         b2_x1, b2_y1, b2_x2, b2_y2 = box2.chunk(4, -1)
         w1, h1 = b1_x2 - b1_x1, b1_y2 - b1_y1 + eps
         w2, h2 = b2_x2 - b2_x1, b2_y2 - b2_y1 + eps
 
-    # Intersection area
+
     inter = (b1_x2.minimum(b2_x2) - b1_x1.maximum(b2_x1)).clamp_(0) * (
         b1_y2.minimum(b2_y2) - b1_y1.maximum(b2_y1)
     ).clamp_(0)
 
-    # Union Area
+
     union = w1 * h1 + w2 * h2 - inter + eps
 
-    # IoU
+
     iou = inter / union
     if CIoU or DIoU or GIoU:
-        cw = b1_x2.maximum(b2_x2) - b1_x1.minimum(b2_x1)  # convex (smallest enclosing box) width
-        ch = b1_y2.maximum(b2_y2) - b1_y1.minimum(b2_y1)  # convex height
-        if CIoU or DIoU:  # Distance or Complete IoU https://arxiv.org/abs/1911.08287v1
-            c2 = cw.pow(2) + ch.pow(2) + eps  # convex diagonal squared
+        cw = b1_x2.maximum(b2_x2) - b1_x1.minimum(b2_x1)
+        ch = b1_y2.maximum(b2_y2) - b1_y1.minimum(b2_y1)
+        if CIoU or DIoU:
+            c2 = cw.pow(2) + ch.pow(2) + eps
             rho2 = (
                 (b2_x1 + b2_x2 - b1_x1 - b1_x2).pow(2) + (b2_y1 + b2_y2 - b1_y1 - b1_y2).pow(2)
-            ) / 4  # center dist**2
-            if CIoU:  # https://github.com/Zzh-tju/DIoU-SSD-pytorch/blob/master/utils/box/box_utils.py#L47
+            ) / 4
+            if CIoU:
                 v = (4 / math.pi**2) * ((w2 / h2).atan() - (w1 / h1).atan()).pow(2)
                 with torch.no_grad():
                     alpha = v / (v - iou + (1 + eps))
-                return iou - (rho2 / c2 + v * alpha)  # CIoU
-            return iou - rho2 / c2  # DIoU
-        c_area = cw * ch + eps  # convex area
-        return iou - (c_area - union) / c_area  # GIoU https://arxiv.org/pdf/1902.09630.pdf
-    return iou  # IoU
+                return iou - (rho2 / c2 + v * alpha)
+            return iou - rho2 / c2
+        c_area = cw * ch + eps
+        return iou - (c_area - union) / c_area
+    return iou
 
 
 def mask_iou(mask1: torch.Tensor, mask2: torch.Tensor, eps: float = 1e-7) -> torch.Tensor:
@@ -161,7 +161,7 @@ def mask_iou(mask1: torch.Tensor, mask2: torch.Tensor, eps: float = 1e-7) -> tor
         (torch.Tensor): A tensor of shape (N, M) representing masks IoU.
     """
     intersection = torch.matmul(mask1, mask2.T).clamp_(0)
-    union = (mask1.sum(1)[:, None] + mask2.sum(1)[None]) - intersection  # (area1 + area2) - intersection
+    union = (mask1.sum(1)[:, None] + mask2.sum(1)[None]) - intersection
     return intersection / (union + eps)
 
 
@@ -180,11 +180,11 @@ def kpt_iou(
     Returns:
         (torch.Tensor): A tensor of shape (N, M) representing keypoint similarities.
     """
-    d = (kpt1[:, None, :, 0] - kpt2[..., 0]).pow(2) + (kpt1[:, None, :, 1] - kpt2[..., 1]).pow(2)  # (N, M, 17)
-    sigma = torch.tensor(sigma, device=kpt1.device, dtype=kpt1.dtype)  # (17, )
-    kpt_mask = kpt1[..., 2] != 0  # (N, 17)
-    e = d / ((2 * sigma).pow(2) * (area[:, None, None] + eps) * 2)  # from cocoeval
-    # e = d / ((area[None, :, None] + eps) * sigma) ** 2 / 2  # from formula
+    d = (kpt1[:, None, :, 0] - kpt2[..., 0]).pow(2) + (kpt1[:, None, :, 1] - kpt2[..., 1]).pow(2)
+    sigma = torch.tensor(sigma, device=kpt1.device, dtype=kpt1.dtype)
+    kpt_mask = kpt1[..., 2] != 0
+    e = d / ((2 * sigma).pow(2) * (area[:, None, None] + eps) * 2)
+
     return ((-e).exp() * kpt_mask[:, None]).sum(-1) / (kpt_mask.sum(-1)[:, None] + eps)
 
 
@@ -198,7 +198,7 @@ def _get_covariance_matrix(boxes: torch.Tensor) -> tuple[torch.Tensor, torch.Ten
         (tuple[torch.Tensor, torch.Tensor, torch.Tensor]): Covariance matrix components (a, b, c) where the covariance
             matrix is [[a, c], [c, b]], each of shape (N, 1).
     """
-    # Gaussian bounding boxes, ignore the center points (the first two columns) because they are not needed here.
+
     gbbs = torch.cat((boxes[:, 2:4].pow(2) / 12, boxes[:, 4:]), dim=-1)
     a, b, c = gbbs.split(1, dim=-1)
     cos = c.cos()
@@ -243,13 +243,13 @@ def probiou(obb1: torch.Tensor, obb2: torch.Tensor, CIoU: bool = False, eps: flo
     bd = (t1 + t2 + t3).clamp(eps, 100.0)
     hd = (1.0 - (-bd).exp() + eps).sqrt()
     iou = 1 - hd
-    if CIoU:  # only include the wh aspect ratio part
+    if CIoU:
         w1, h1 = obb1[..., 2:4].split(1, dim=-1)
         w2, h2 = obb2[..., 2:4].split(1, dim=-1)
         v = (4 / math.pi**2) * ((w2 / h2).atan() - (w1 / h1).atan()).pow(2)
         with torch.no_grad():
             alpha = v / (v - iou + (1 + eps))
-        return iou - v * alpha  # CIoU
+        return iou - v * alpha
     return iou
 
 
@@ -325,9 +325,9 @@ class ConfusionMatrix(DataExportMixin):
             save_matches (bool, optional): Save the indices of GTs, TPs, FPs, FNs for visualization.
         """
         self.task = task
-        self.nc = len(names)  # number of classes
+        self.nc = len(names)
         self.matrix = np.zeros((self.nc, self.nc)) if self.task == "classify" else np.zeros((self.nc + 1, self.nc + 1))
-        self.names = names  # name of classes
+        self.names = names
         self.matches = {} if save_matches else None
 
     def _append_matches(self, mtype: str, batch: dict[str, Any], idx: int) -> None:
@@ -352,7 +352,7 @@ class ConfusionMatrix(DataExportMixin):
             if k in {"bboxes", "cls", "conf", "keypoints"}:
                 self.matches[mtype][k] += v[[idx]]
             elif k == "masks":
-                # NOTE: masks.max() > 1.0 means overlap_mask=True with (1, H, W) shape
+
                 self.matches[mtype][k] += [v[0] == idx + 1] if v.max() > 1.0 else [v[idx]]
 
     def process_cls_preds(self, preds: list[torch.Tensor], targets: list[torch.Tensor]) -> None:
@@ -385,25 +385,25 @@ class ConfusionMatrix(DataExportMixin):
             iou_thres (float, optional): IoU threshold for matching detections to ground truth.
         """
         gt_cls, gt_bboxes = batch["cls"], batch["bboxes"]
-        if self.matches is not None:  # only if visualization is enabled
+        if self.matches is not None:
             self.matches = {k: defaultdict(list) for k in {"TP", "FP", "FN", "GT"}}
             for i in range(gt_cls.shape[0]):
-                self._append_matches("GT", batch, i)  # store GT
-        is_obb = gt_bboxes.shape[1] == 5  # check if boxes contains angle for OBB
-        conf = 0.25 if conf in {None, 0.01 if is_obb else 0.001} else conf  # apply 0.25 if default val conf is passed
+                self._append_matches("GT", batch, i)
+        is_obb = gt_bboxes.shape[1] == 5
+        conf = 0.25 if conf in {None, 0.01 if is_obb else 0.001} else conf
         no_pred = detections["cls"].shape[0] == 0
-        if gt_cls.shape[0] == 0:  # Check if labels is empty
+        if gt_cls.shape[0] == 0:
             if not no_pred:
                 detections = {k: detections[k][detections["conf"] > conf] for k in detections}
                 detection_classes = detections["cls"].int().tolist()
                 for i, dc in enumerate(detection_classes):
-                    self.matrix[dc, self.nc] += 1  # FP
+                    self.matrix[dc, self.nc] += 1
                     self._append_matches("FP", detections, i)
             return
         if no_pred:
             gt_classes = gt_cls.int().tolist()
             for i, gc in enumerate(gt_classes):
-                self.matrix[self.nc, gc] += 1  # FN
+                self.matrix[self.nc, gc] += 1
                 self._append_matches("FN", batch, i)
             return
 
@@ -430,19 +430,19 @@ class ConfusionMatrix(DataExportMixin):
             j = m0 == i
             if n and sum(j) == 1:
                 dc = detection_classes[m1[j].item()]
-                self.matrix[dc, gc] += 1  # TP if class is correct else both an FP and an FN
+                self.matrix[dc, gc] += 1
                 if dc == gc:
                     self._append_matches("TP", detections, m1[j].item())
                 else:
                     self._append_matches("FP", detections, m1[j].item())
                     self._append_matches("FN", batch, i)
             else:
-                self.matrix[self.nc, gc] += 1  # FN
+                self.matrix[self.nc, gc] += 1
                 self._append_matches("FN", batch, i)
 
         for i, dc in enumerate(detection_classes):
             if not any(m1 == i):
-                self.matrix[dc, self.nc] += 1  # FP
+                self.matrix[dc, self.nc] += 1
                 self._append_matches("FP", detections, i)
 
     def matrix(self):
@@ -456,10 +456,10 @@ class ConfusionMatrix(DataExportMixin):
             tp (np.ndarray): True positives.
             fp (np.ndarray): False positives.
         """
-        tp = self.matrix.diagonal()  # true positives
-        fp = self.matrix.sum(1) - tp  # false positives
-        # fn = self.matrix.sum(0) - tp  # false negatives (missed detections)
-        return (tp, fp) if self.task == "classify" else (tp[:-1], fp[:-1])  # remove background class if task=detect
+        tp = self.matrix.diagonal()
+        fp = self.matrix.sum(1) - tp
+
+        return (tp, fp) if self.task == "classify" else (tp[:-1], fp[:-1])
 
     def plot_matches(self, img: torch.Tensor, im_file: str, save_dir: Path) -> None:
         """Plot grid of GT, TP, FP, FN for each image.
@@ -474,7 +474,7 @@ class ConfusionMatrix(DataExportMixin):
         from .ops import xyxy2xywh
         from .plotting import plot_images
 
-        # Create batch of 4 (GT, TP, FP, FN)
+
         labels = defaultdict(list)
         for i, mtype in enumerate(["GT", "FP", "TP", "FN"]):
             mbatch = self.matches[mtype]
@@ -508,32 +508,32 @@ class ConfusionMatrix(DataExportMixin):
             save_dir (str, optional): Directory where the plot will be saved.
             on_plot (callable, optional): An optional callback to pass plots path and data when they are rendered.
         """
-        import matplotlib.pyplot as plt  # scope for faster 'import ultralytics'
+        import matplotlib.pyplot as plt
 
-        array = self.matrix / ((self.matrix.sum(0).reshape(1, -1) + 1e-9) if normalize else 1)  # normalize columns
-        array[array < 0.005] = np.nan  # don't annotate (would appear as 0.00)
+        array = self.matrix / ((self.matrix.sum(0).reshape(1, -1) + 1e-9) if normalize else 1)
+        array[array < 0.005] = np.nan
 
         fig, ax = plt.subplots(1, 1, figsize=(12, 9))
         names, n = list(self.names.values()), self.nc
-        if self.nc >= 100:  # downsample for large class count
-            k = max(2, self.nc // 60)  # step size for downsampling, always > 1
-            keep_idx = slice(None, None, k)  # create slice instead of array
-            names = names[keep_idx]  # slice class names
-            array = array[keep_idx, :][:, keep_idx]  # slice matrix rows and cols
-            n = (self.nc + k - 1) // k  # number of retained classes
-        nc = nn = n if self.task == "classify" else n + 1  # adjust for background if needed
+        if self.nc >= 100:
+            k = max(2, self.nc // 60)
+            keep_idx = slice(None, None, k)
+            names = names[keep_idx]
+            array = array[keep_idx, :][:, keep_idx]
+            n = (self.nc + k - 1) // k
+        nc = nn = n if self.task == "classify" else n + 1
         ticklabels = ([*names, "background"]) if (0 < nn < 99) and (nn == nc) else "auto"
         xy_ticks = np.arange(len(ticklabels))
-        tick_fontsize = max(6, 15 - 0.1 * nc)  # Minimum size is 6
+        tick_fontsize = max(6, 15 - 0.1 * nc)
         label_fontsize = max(6, 12 - 0.1 * nc)
         title_fontsize = max(6, 12 - 0.1 * nc)
-        btm = max(0.1, 0.25 - 0.001 * nc)  # Minimum value is 0.1
+        btm = max(0.1, 0.25 - 0.001 * nc)
         with warnings.catch_warnings():
-            warnings.simplefilter("ignore")  # suppress empty matrix RuntimeWarning: All-NaN slice encountered
+            warnings.simplefilter("ignore")
             im = ax.imshow(array, cmap="Blues", vmin=0.0, interpolation="none")
             ax.xaxis.set_label_position("bottom")
-            if nc < 30:  # Add score for each cell of confusion matrix
-                color_threshold = 0.45 * (1 if normalize else np.nanmax(array))  # text color threshold
+            if nc < 30:
+                color_threshold = 0.45 * (1 if normalize else np.nanmax(array))
                 for i, row in enumerate(array[:nc]):
                     for j, val in enumerate(row[:nc]):
                         val = array[i, j]
@@ -562,9 +562,9 @@ class ConfusionMatrix(DataExportMixin):
             ax.set_yticklabels(ticklabels, fontsize=tick_fontsize)
         for s in {"left", "right", "bottom", "top", "outline"}:
             if s != "outline":
-                ax.spines[s].set_visible(False)  # Confusion matrix plot don't have outline
+                ax.spines[s].set_visible(False)
             cbar.ax.spines[s].set_visible(False)
-        fig.subplots_adjust(left=0, right=0.84, top=0.94, bottom=btm)  # Adjust layout to ensure equal margins
+        fig.subplots_adjust(left=0, right=0.84, top=0.94, bottom=btm)
         plot_fname = Path(save_dir) / f"{title.lower().replace(' ', '_')}.png"
         fig.savefig(plot_fname, dpi=250)
         plt.close(fig)
@@ -616,10 +616,10 @@ class ConfusionMatrix(DataExportMixin):
 
 def smooth(y: np.ndarray, f: float = 0.05) -> np.ndarray:
     """Box filter of fraction f."""
-    nf = round(len(y) * f * 2) // 2 + 1  # number of filter elements (must be odd)
-    p = np.ones(nf // 2)  # ones padding
-    yp = np.concatenate((p * y[0], y, p * y[-1]), 0)  # y padded
-    return np.convolve(yp, np.ones(nf) / nf, mode="valid")  # y-smoothed
+    nf = round(len(y) * f * 2) // 2 + 1
+    p = np.ones(nf // 2)
+    yp = np.concatenate((p * y[0], y, p * y[-1]), 0)
+    return np.convolve(yp, np.ones(nf) / nf, mode="valid")
 
 
 @plt_settings()
@@ -641,16 +641,16 @@ def plot_pr_curve(
         names (dict[int, str], optional): Dictionary mapping class indices to class names.
         on_plot (callable, optional): Function to call after plot is saved.
     """
-    import matplotlib.pyplot as plt  # scope for faster 'import ultralytics'
+    import matplotlib.pyplot as plt
 
     fig, ax = plt.subplots(1, 1, figsize=(9, 6), tight_layout=True)
     py = np.stack(py, axis=1)
 
-    if 0 < len(names) < 21:  # display per-class legend if < 21 classes
+    if 0 < len(names) < 21:
         for i, y in enumerate(py.T):
-            ax.plot(px, y, linewidth=1, label=f"{names[i]} {ap[i, 0]:.3f}")  # plot(recall, precision)
+            ax.plot(px, y, linewidth=1, label=f"{names[i]} {ap[i, 0]:.3f}")
     else:
-        ax.plot(px, py, linewidth=1, color="gray")  # plot(recall, precision)
+        ax.plot(px, py, linewidth=1, color="gray")
 
     ax.plot(px, py.mean(1), linewidth=3, color="blue", label=f"all classes {ap[:, 0].mean():.3f} mAP@0.5")
     ax.set_xlabel("Recall")
@@ -662,8 +662,8 @@ def plot_pr_curve(
     fig.savefig(save_dir, dpi=250)
     plt.close(fig)
     if on_plot:
-        # Pass PR curve data for interactive plotting (class names stored at model level)
-        # Transpose py to match other curves: y[class][point] format
+
+
         on_plot(save_dir, {"type": "pr_curve", "x": px.tolist(), "y": py.T.tolist(), "ap": ap.tolist()})
 
 
@@ -688,15 +688,15 @@ def plot_mc_curve(
         ylabel (str, optional): Y-axis label.
         on_plot (callable, optional): Function to call after plot is saved.
     """
-    import matplotlib.pyplot as plt  # scope for faster 'import ultralytics'
+    import matplotlib.pyplot as plt
 
     fig, ax = plt.subplots(1, 1, figsize=(9, 6), tight_layout=True)
 
-    if 0 < len(names) < 21:  # display per-class legend if < 21 classes
+    if 0 < len(names) < 21:
         for i, y in enumerate(py):
-            ax.plot(px, y, linewidth=1, label=f"{names[i]}")  # plot(confidence, metric)
+            ax.plot(px, y, linewidth=1, label=f"{names[i]}")
     else:
-        ax.plot(px, py.T, linewidth=1, color="gray")  # plot(confidence, metric)
+        ax.plot(px, py.T, linewidth=1, color="gray")
 
     y = smooth(py.mean(0), 0.1)
     ax.plot(px, y, linewidth=3, color="blue", label=f"all classes {y.max():.2f} at {px[y.argmax()]:.3f}")
@@ -709,7 +709,7 @@ def plot_mc_curve(
     fig.savefig(save_dir, dpi=250)
     plt.close(fig)
     if on_plot:
-        # Pass metric-confidence curve data for interactive plotting (class names stored at model level)
+
         on_plot(save_dir, {"type": f"{ylabel.lower()}_curve", "x": px.tolist(), "y": py.tolist()})
 
 
@@ -725,22 +725,22 @@ def compute_ap(recall: list[float], precision: list[float]) -> tuple[float, np.n
         mpre (np.ndarray): Precision envelope curve.
         mrec (np.ndarray): Modified recall curve with sentinel values added at the beginning and end.
     """
-    # Append sentinel values to beginning and end
+
     mrec = np.concatenate(([0.0], recall, [1.0]))
     mpre = np.concatenate(([1.0], precision, [0.0]))
 
-    # Compute the precision envelope
+
     mpre = np.flip(np.maximum.accumulate(np.flip(mpre)))
 
-    # Integrate area under curve
-    method = "interp"  # methods: 'continuous', 'interp'
+
+    method = "interp"
     if method == "interp":
-        x = np.linspace(0, 1, 101)  # 101-point interp (COCO)
-        func = np.trapezoid if checks.check_version(np.__version__, ">=2.0") else np.trapz  # np.trapz deprecated
-        ap = func(np.interp(x, mrec, mpre), x)  # integrate
-    else:  # 'continuous'
-        i = np.where(mrec[1:] != mrec[:-1])[0]  # points where x-axis (recall) changes
-        ap = np.sum((mrec[i + 1] - mrec[i]) * mpre[i + 1])  # area under curve
+        x = np.linspace(0, 1, 101)
+        func = np.trapezoid if checks.check_version(np.__version__, ">=2.0") else np.trapz
+        ap = func(np.interp(x, mrec, mpre), x)
+    else:
+        i = np.where(mrec[1:] != mrec[:-1])[0]
+        ap = np.sum((mrec[i + 1] - mrec[i]) * mpre[i + 1])
 
     return ap, mpre, mrec
 
@@ -785,59 +785,59 @@ def ap_per_class(
         x (np.ndarray): X-axis values for the curves.
         prec_values (np.ndarray): Precision values at mAP@0.5 for each class.
     """
-    # Sort by objectness
+
     i = np.argsort(-conf)
     tp, conf, pred_cls = tp[i], conf[i], pred_cls[i]
 
-    # Find unique classes
-    unique_classes, nt = np.unique(target_cls, return_counts=True)
-    nc = unique_classes.shape[0]  # number of classes, number of detections
 
-    # Create Precision-Recall curve and compute AP for each class
+    unique_classes, nt = np.unique(target_cls, return_counts=True)
+    nc = unique_classes.shape[0]
+
+
     x, prec_values = np.linspace(0, 1, 1000), []
 
-    # Average precision, precision and recall curves
+
     ap, p_curve, r_curve = np.zeros((nc, tp.shape[1])), np.zeros((nc, 1000)), np.zeros((nc, 1000))
     for ci, c in enumerate(unique_classes):
         i = pred_cls == c
-        n_l = nt[ci]  # number of labels
-        n_p = i.sum()  # number of predictions
+        n_l = nt[ci]
+        n_p = i.sum()
         if n_p == 0 or n_l == 0:
             continue
 
-        # Accumulate FPs and TPs
+
         fpc = (1 - tp[i]).cumsum(0)
         tpc = tp[i].cumsum(0)
 
-        # Recall
-        recall = tpc / (n_l + eps)  # recall curve
-        r_curve[ci] = np.interp(-x, -conf[i], recall[:, 0], left=0)  # negative x, xp because xp decreases
 
-        # Precision
-        precision = tpc / (tpc + fpc)  # precision curve
-        p_curve[ci] = np.interp(-x, -conf[i], precision[:, 0], left=1)  # p at pr_score
+        recall = tpc / (n_l + eps)
+        r_curve[ci] = np.interp(-x, -conf[i], recall[:, 0], left=0)
 
-        # AP from recall-precision curve
+
+        precision = tpc / (tpc + fpc)
+        p_curve[ci] = np.interp(-x, -conf[i], precision[:, 0], left=1)
+
+
         for j in range(tp.shape[1]):
             ap[ci, j], mpre, mrec = compute_ap(recall[:, j], precision[:, j])
             if j == 0:
-                prec_values.append(np.interp(x, mrec, mpre))  # precision at mAP@0.5
+                prec_values.append(np.interp(x, mrec, mpre))
 
-    prec_values = np.array(prec_values) if prec_values else np.zeros((1, 1000))  # (nc, 1000)
+    prec_values = np.array(prec_values) if prec_values else np.zeros((1, 1000))
 
-    # Compute F1 (harmonic mean of precision and recall)
+
     f1_curve = 2 * p_curve * r_curve / (p_curve + r_curve + eps)
-    names = {i: names[k] for i, k in enumerate(unique_classes) if k in names}  # dict: only classes that have data
+    names = {i: names[k] for i, k in enumerate(unique_classes) if k in names}
     if plot:
         plot_pr_curve(x, prec_values, ap, save_dir / f"{prefix}PR_curve.png", names, on_plot=on_plot)
         plot_mc_curve(x, f1_curve, save_dir / f"{prefix}F1_curve.png", names, ylabel="F1", on_plot=on_plot)
         plot_mc_curve(x, p_curve, save_dir / f"{prefix}P_curve.png", names, ylabel="Precision", on_plot=on_plot)
         plot_mc_curve(x, r_curve, save_dir / f"{prefix}R_curve.png", names, ylabel="Recall", on_plot=on_plot)
 
-    i = smooth(f1_curve.mean(0), 0.1).argmax()  # max F1 index
-    p, r, f1 = p_curve[:, i], r_curve[:, i], f1_curve[:, i]  # max-F1 precision, recall, F1 values
-    tp = (r * nt).round()  # true positives
-    fp = (tp / (p + eps) - tp).round()  # false positives
+    i = smooth(f1_curve.mean(0), 0.1).argmax()
+    p, r, f1 = p_curve[:, i], r_curve[:, i], f1_curve[:, i]
+    tp = (r * nt).round()
+    fp = (tp / (p + eps) - tp).round()
     return tp, fp, p, r, f1, ap, unique_classes.astype(int), p_curve, r_curve, f1_curve, x, prec_values
 
 
@@ -871,11 +871,11 @@ class Metric(SimpleClass):
 
     def __init__(self) -> None:
         """Initialize a Metric instance for computing evaluation metrics for the YOLOv8 model."""
-        self.p = []  # (nc, )
-        self.r = []  # (nc, )
-        self.f1 = []  # (nc, )
-        self.all_ap = []  # (nc, 10)
-        self.ap_class_index = []  # (nc, )
+        self.p = []
+        self.r = []
+        self.f1 = []
+        self.all_ap = []
+        self.ap_class_index = []
         self.nc = 0
 
     @property
@@ -959,7 +959,7 @@ class Metric(SimpleClass):
 
     def fitness(self) -> float:
         """Return model fitness as a weighted combination of metrics."""
-        w = [0.0, 0.0, 0.0, 1.0]  # weights for [P, R, mAP@0.5, mAP@0.5:0.95]
+        w = [0.0, 0.0, 0.0, 1.0]
         return (np.nan_to_num(np.array(self.mean_results())) * w).sum()
 
     def update(self, results: tuple):
@@ -1071,7 +1071,7 @@ class DetMetrics(SimpleClass, DataExportMixin):
         Returns:
             (dict[str, np.ndarray]): Dictionary containing concatenated statistics arrays.
         """
-        stats = {k: np.concatenate(v, 0) for k, v in self.stats.items()}  # to numpy
+        stats = {k: np.concatenate(v, 0) for k, v in self.stats.items()}
         if not stats:
             return stats
         results = ap_per_class(
@@ -1211,7 +1211,7 @@ class SegmentMetrics(DetMetrics):
         DetMetrics.__init__(self, names)
         self.seg = Metric()
         self.task = "segment"
-        self.stats["tp_m"] = []  # add additional stats for masks
+        self.stats["tp_m"] = []
 
     def process(self, save_dir: Path = Path("."), plot: bool = False, on_plot=None) -> dict[str, np.ndarray]:
         """Process the detection and segmentation metrics over the given set of predictions.
@@ -1224,7 +1224,7 @@ class SegmentMetrics(DetMetrics):
         Returns:
             (dict[str, np.ndarray]): Dictionary containing concatenated statistics arrays.
         """
-        stats = DetMetrics.process(self, save_dir, plot, on_plot=on_plot)  # process box stats
+        stats = DetMetrics.process(self, save_dir, plot, on_plot=on_plot)
         results_mask = ap_per_class(
             stats["tp_m"],
             stats["conf"],
@@ -1308,7 +1308,7 @@ class SegmentMetrics(DetMetrics):
             "Mask-R": self.seg.r,
             "Mask-F1": self.seg.f1,
         }
-        summary = DetMetrics.summary(self, normalize, decimals)  # get box summary
+        summary = DetMetrics.summary(self, normalize, decimals)
         for i, s in enumerate(summary):
             s.update({**{k: round(v[i], decimals) for k, v in per_class.items()}})
         return summary
@@ -1349,7 +1349,7 @@ class PoseMetrics(DetMetrics):
         super().__init__(names)
         self.pose = Metric()
         self.task = "pose"
-        self.stats["tp_p"] = []  # add additional stats for pose
+        self.stats["tp_p"] = []
 
     def process(self, save_dir: Path = Path("."), plot: bool = False, on_plot=None) -> dict[str, np.ndarray]:
         """Process the detection and pose metrics over the given set of predictions.
@@ -1362,7 +1362,7 @@ class PoseMetrics(DetMetrics):
         Returns:
             (dict[str, np.ndarray]): Dictionary containing concatenated statistics arrays.
         """
-        stats = DetMetrics.process(self, save_dir, plot, on_plot=on_plot)  # process box stats
+        stats = DetMetrics.process(self, save_dir, plot, on_plot=on_plot)
         results_pose = ap_per_class(
             stats["tp_p"],
             stats["conf"],
@@ -1449,7 +1449,7 @@ class PoseMetrics(DetMetrics):
             "Pose-R": self.pose.r,
             "Pose-F1": self.pose.f1,
         }
-        summary = DetMetrics.summary(self, normalize, decimals)  # get box summary
+        summary = DetMetrics.summary(self, normalize, decimals)
         for i, s in enumerate(summary):
             s.update({**{k: round(v[i], decimals) for k, v in per_class.items()}})
         return summary
@@ -1490,7 +1490,7 @@ class ClassifyMetrics(SimpleClass, DataExportMixin):
         """
         pred, targets = torch.cat(pred), torch.cat(targets)
         correct = (targets[:, None] == pred).float()
-        acc = torch.stack((correct[:, 0], correct.max(1).values), dim=1)  # (top1, top5) accuracy
+        acc = torch.stack((correct[:, 0], correct.max(1).values), dim=1)
         self.top1, self.top5 = acc.mean(0).tolist()
 
     @property
@@ -1560,5 +1560,5 @@ class OBBMetrics(DetMetrics):
             names (dict[int, str], optional): Dictionary of class names.
         """
         DetMetrics.__init__(self, names)
-        # TODO: probably remove task as well
+
         self.task = "obb"
